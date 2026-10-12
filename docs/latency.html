@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The latency ladder · Hook Chain</title>
+<meta name="description" content="From a pass-through hook to a decision model, an LLM call and a human prompt, normalized to the cheapest rung.">
+<meta property="og:title" content="The latency ladder · Hook Chain">
+<meta property="og:description" content="From a pass-through hook to a decision model, an LLM call and a human prompt, normalized to the cheapest rung.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://robgruhl.github.io/claude-mod-learnings/latency.html">
+<meta property="og:image" content="https://robgruhl.github.io/claude-mod-learnings/assets/img/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+  try { var t = localStorage.getItem("hc-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+</head>
+<body class="inner">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Hook Chain</span></a>
+  <div class="topbar-actions">
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="sidenav">Menu</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="sidenav" class="sidenav" aria-label="Site">
+    <a class="nav-start" href="index.html">Start here</a>
+    <div class="nav-group"><p class="nav-head">Learn</p><ul><li><a href="eli5.html">Explain like I&#x27;m five</a></li><li><a href="101.html">101 · What a mod is</a></li><li><a href="201.html">201 · Writing mods well</a></li><li><a href="301.html">301 · Engineering &amp; policy</a></li></ul></div><div class="nav-group"><p class="nav-head">Architecture</p><ul><li><a href="which.html">Mods vs skills vs MCP…</a></li><li><a href="chain.html">The hook chain</a></li><li><a href="lifetimes.html">What lasts how long</a></li><li><a href="cascade.html">Mods meet the cascade</a></li></ul></div><div class="nav-group"><p class="nav-head">Evidence</p><ul><li><a href="fieldtests.html">Field tests</a></li><li><a href="latency.html" aria-current="page">Latency ladder</a></li><li><a href="landscape.html">Landscape · Oct 2026</a></li></ul></div><div class="nav-group"><p class="nav-head">Build</p><ul><li><a href="build.html">Build your own</a></li></ul></div>
+    <p class="nav-foot"><a href="https://github.com/RobGruhl/claude-mod-learnings">Source on GitHub</a></p>
+  </nav>
+  <main id="main" class="content">
+    <p class="eyebrow"><span class="badge data">Evidence</span> Measured October 12, 2026 · Claude Code 2.1.296</p>
+    <h1>The latency ladder</h1>
+    <p class="lede">A hook's own code is almost free. What a hook <em>waits for</em> is where the time goes. With one pass-through hook as 1×, here is the climb from a hook to a file read, a process, a decision model, a language model and a person.</p>
+
+    <h2>One hook, normalized</h2>
+    <p>One pass-through <code>tool.call</code> hook added about <strong>42 µs</strong> per call in the test kit. That's our 1×. The bars use a logarithmic scale from 0.5× to 10,000,000×, so equal lengths mean equal multiples. Without the log scale, every rung below the decision models would be invisible.</p>
+    <div class="widget" style="padding-top:12px">
+      <div class="cost-row"><span class="name">Pass-through hook</span><span class="track"><span class="fill decision" style="width:4.1%"></span></span><span class="mult">1×</span></div>
+      <div class="cost-row"><span class="name"><code>$.env.get</code></span><span class="track"><span class="fill decision" style="width:4.1%"></span></span><span class="mult">≈1×</span></div>
+      <div class="cost-row"><span class="name"><code>$.store.get</code></span><span class="track"><span class="fill decision" style="width:8.5%"></span></span><span class="mult">≈2×</span></div>
+      <div class="cost-row"><span class="name"><code>$.fs.read</code>, small file</span><span class="track"><span class="fill decision" style="width:12.8%"></span></span><span class="mult">≈4×</span></div>
+      <div class="cost-row"><span class="name"><code>$.http.fetch</code>, localhost</span><span class="track"><span class="fill decision" style="width:19.8%"></span></span><span class="mult">≈14×</span></div>
+      <div class="cost-row"><span class="name"><code>$.process.run</code></span><span class="track"><span class="fill decision" style="width:25.4%"></span></span><span class="mult">≈36×</span></div>
+      <div class="cost-row"><span class="name">OpenAI Decisions API</span><span class="track"><span class="fill small" style="width:56.9%"></span></span><span class="mult">~7,100×</span></div>
+      <div class="cost-row"><span class="name">Jev (hosted)</span><span class="track"><span class="fill small" style="width:60.9%"></span></span><span class="mult">~14,000×</span></div>
+      <div class="cost-row"><span class="name">Claude Haiku 5.5, low</span><span class="track"><span class="fill llm" style="width:69.6%"></span></span><span class="mult">~60,000×</span></div>
+      <div class="cost-row"><span class="name">Hook budget, 10 s</span><span class="track"><span class="fill llm" style="width:77.8%;opacity:.35"></span></span><span class="mult">240,000×</span></div>
+      <div class="cost-row"><span class="name">A person, ~1 minute</span><span class="track"><span class="fill human" style="width:88.3%"></span></span><span class="mult">~1.4M×</span></div>
+      <div class="legend"><span><i style="background:var(--teal)"></i>Hooks and <code>$</code> calls (measured here)</span><span><i style="background:var(--amber)"></i>Decision models (measured by Decision Tier)</span><span><i style="background:var(--coral)"></i>LLM (measured by Decision Tier) and the budget line</span><span><i style="background:var(--ink)"></i>Human (assumption)</span></div>
+    </div>
+
+    <h2>Where each number comes from</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Rung</th><th>Basis</th><th class="num">Median</th><th class="num">Multiple</th></tr></thead>
+      <tbody>
+        <tr><td>Pass-through hook</td><td>Test kit: 1 hook against 0 hooks, 3 × 2,000 calls, 3 separate runs</td><td class="num">~42 µs</td><td class="num">1×</td></tr>
+        <tr><td><code>$.env.get</code></td><td>Live headless session, 200 calls, 4 runs</td><td class="num">~43 µs</td><td class="num">≈1×</td></tr>
+        <tr><td><code>$.store.get</code></td><td>Live, 200 calls, 4 runs</td><td class="num">~90 µs</td><td class="num">≈2×</td></tr>
+        <tr><td><code>$.fs.read</code> (small file)</td><td>Live, 50 calls, 4 runs</td><td class="num">~180 µs</td><td class="num">≈4×</td></tr>
+        <tr><td><code>$.http.fetch</code> to a local server</td><td>Live, 20 calls, 3 runs, Python <code>http.server</code> on 127.0.0.1</td><td class="num">~0.58 ms</td><td class="num">≈14×</td></tr>
+        <tr><td><code>$.process.run(['true'])</code></td><td>Live, 20 calls, 4 runs</td><td class="num">~1.5 ms</td><td class="num">≈36×</td></tr>
+        <tr><td>OpenAI Decisions API</td><td>As measured by <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>; p95 0.76 s</td><td class="num">0.30 s</td><td class="num">~7,100×</td></tr>
+        <tr><td>Jev <code>jev-1.13.0</code>, hosted</td><td>As measured by Decision Tier, 13-question requests, 4 in flight; p95 2.09 s</td><td class="num">0.59 s</td><td class="num">~14,000×</td></tr>
+        <tr><td>Claude Haiku 5.5, effort low</td><td>As measured by Decision Tier; p50 2–3 s, p95 3.5–4.8 s</td><td class="num">~2.5 s</td><td class="num">~60,000×</td></tr>
+        <tr><td>A hook's own-time budget</td><td>Mods reference, <em>Limits</em>; confirmed live in <a href="fieldtests.html">Field tests</a></td><td class="num">10 s</td><td class="num">240,000×</td></tr>
+        <tr><td>A person answering <code>$.ui.ask</code></td><td>Assumption, not measured: they have to notice, read and choose</td><td class="num">~1 min</td><td class="num">~1.4M×</td></tr>
+      </tbody>
+    </table></div>
+    <p>The hook and <code>$</code> rows come from <a href="https://github.com/RobGruhl/claude-mod-learnings/tree/main/experiments">our experiments</a>: <code>latency/</code> in the test kit and <code>live-probe/</code> in a real headless session, which drops its prompt so no model is called. The kit row is the chain's overhead in the kit's engine, with no session or terminal drawing. A live interactive session does more work around each call, not less. The decision-model and LLM rows are network round trips measured on another project's workloads, so take them as orders of magnitude for your hook, not as promises.</p>
+
+    <h2>The chain itself barely costs anything</h2>
+    <p>We stacked pass-through hooks by matcher, so the same module gave four chain depths, and then repeated the test with the hooks spread across separate mods. Per-call medians from the test kit, one of three runs that agreed to within a few µs:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Configuration</th><th class="num">Per call</th><th class="num">Over no hooks</th></tr></thead>
+      <tbody>
+        <tr><td>No hooks (the kit's own dispatch)</td><td class="num">43 µs</td><td class="num">—</td></tr>
+        <tr><td>1 hook</td><td class="num">85 µs</td><td class="num">+42 µs</td></tr>
+        <tr><td>5 hooks in one module</td><td class="num">80 µs</td><td class="num">+37 µs</td></tr>
+        <tr><td>20 hooks in one module</td><td class="num">81 µs</td><td class="num">+38 µs</td></tr>
+        <tr><td>1 hook that makes one <code>$</code> call</td><td class="num">131 µs</td><td class="num">+88 µs</td></tr>
+        <tr><td>1 separate mod</td><td class="num">90 µs</td><td class="num">+47 µs</td></tr>
+        <tr><td>5 separate mods</td><td class="num">114 µs</td><td class="num">+71 µs</td></tr>
+        <tr><td>20 separate mods</td><td class="num">334 µs</td><td class="num">+291 µs</td></tr>
+      </tbody>
+    </table></div>
+    <p>Three things stand out. Entering a mod costs about 42 µs. More hooks inside the same module cost nothing we could measure: 20 measured no slower than 1. Each additional separate mod adds about 13 µs on average. Twenty mods on every tool call add about a third of a millisecond, while a tool call that reads a file takes far longer. You won't feel the chain.</p>
+
+    <h2>What this means for design</h2>
+    <h3>Spend the budget on waiting, not on thinking</h3>
+    <p>A hook has 10 seconds of its <em>own</em> time per event. In the reference's words, "the clock stops while a <code>next(e)</code> call or any <code>$</code> call of the hook's is in flight (a <code>$.clock</code> wait excepted), so a slow chain beneath or a minute-long <code>$.model.complete</code> costs it nothing." A guard that sends a command to a decision model through <code>$.http.fetch</code> and waits 0.6 seconds for the answer has spent almost none of its budget. A guard that loops in JavaScript for 10 seconds, or polls with <code>$.clock.sleep</code>, has spent all of it. When that happens it's skipped, and the call it was guarding goes ahead (see <a href="fieldtests.html">Field tests</a>, section 2).</p>
+    <h3>Every rung up is a bigger bet</h3>
+    <p>Two of these are still tiny: a regex on <code>e.command</code> (well under 1×) and a <code>$.store</code> lookup (2×). Asking a decision model is four orders of magnitude slower. Asking Claude is another factor of four or so. Asking the person is slower again by a factor of 25. That's the same shape as <a href="https://robgruhl.github.io/jev-learnings/cost.html">Decision Tier's cost ladder</a>, measured in time instead of money. The design rule is the same too: answer in the cheapest rung that can answer correctly, and climb only for what's left. <a href="cascade.html">Mods meet the cascade</a> builds a guard that way.</p>
+    <h3>Hold, don't spin</h3>
+    <p>A guard that needs a human holds the call with <code>$.ui.ask</code>. That's a <code>$</code> call, so the wait doesn't count against the budget, and the person can take their time. The events page puts it plainly: "Time spent awaiting a promise of your own does count. Claude Code skips a hook that times out, so the held command would run." Two more details. <code>$.ui.ask</code> <em>rejects</em> when the person dismisses the question, and always in a <code>claude -p</code> run, so wrap it in <code>try</code> and treat a rejection as a refusal. And give the hook a <code>.catch</code> that refuses. The handler has its own 1-second grace period, which is enough for <code>{ deny }</code> and not enough for anything clever.</p>
+    <h3>Redraws have their own speed limit</h3>
+    <p><code>$.ui.invalidate('ui.render')</code> is throttled to 10 redraws a second, or 30 for visible terminal sites. A spinner suffix that updates on every tool call is fine. A pane that tries to animate at 60 fps isn't. Write to <code>$.state</code> and let the engine redraw only the sites that read it.</p>
+    <h3>The deadlines that aren't 10 s</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Limit</th><th class="num">Value</th><th>Design consequence</th></tr></thead>
+      <tbody>
+        <tr><td>A hook's own time per event</td><td class="num">10 s</td><td>Await <code>$</code> calls freely. Don't compute or sleep for long.</td></tr>
+        <tr><td>A <code>.catch</code> handler's grace</td><td class="num">1 s</td><td>Decide from <code>e</code> and <code>next.called</code> alone. Refuse rather than retry.</td></tr>
+        <tr><td>All <code>session.end</code> hooks, together</td><td class="num">1.5 s</td><td>Save as you go, not at exit. Several mods share these 1.5 seconds.</td></tr>
+        <tr><td>Redraw throttle</td><td class="num">10/s (30/s visible terminal)</td><td>Use reactive <code>$.state</code>, not invalidate loops.</td></tr>
+        <tr><td>A test in <code>claude plugin test</code></td><td class="num">5 s</td><td>The budget can't be tested in the kit. Check timeouts in a headless session.</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="callout note"><p><strong>See also:</strong> <a href="chain.html">The hook chain</a> for where in the chain these costs land, and <a href="cascade.html">Mods meet the cascade</a> for a guard that climbs this ladder only when it has to.</p></div>
+
+<nav class="pager" aria-label="Page navigation"><a class="pager-prev" href="fieldtests.html"><span>Previous</span>Field tests</a><a class="pager-next" href="landscape.html"><span>Next</span>Landscape, October 2026</a></nav>
+    <footer class="footer">
+      <p>An independent study of Claude Code mods, not an Anthropic project. Mods shipped on 1 October 2026 in Claude Code 2.1.287; everything here was checked against 2.1.296 on October 12, 2026. The API is early access, so trust the types your own build writes over anything on this site.</p>
+      <p>Sister site: <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, a field guide to decision models. Text © Rob Gruhl, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>; code samples MIT. Illustrations made with gpt-image-2. Built with Claude Code.</p>
+    </footer>
+  </main>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

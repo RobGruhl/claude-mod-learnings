@@ -1,0 +1,78 @@
+    <p class="eyebrow"><span class="badge arch">Architecture</span> Skills vs MCP vs mods vs everything else</p>
+    <h1>Which extension point?</h1>
+    <p class="lede">Claude Code has about ten ways to change how it behaves. They overlap, and the names don't make the difference obvious. The short version: <strong>text that teaches Claude</strong> goes in CLAUDE.md or a skill, <strong>new abilities</strong> come from MCP, <strong>a separate worker</strong> is a subagent, <strong>a script on an event</strong> is a settings hook, and <strong>code inside the loop</strong> is a mod. A plugin is the box they ship in.</p>
+
+    <figure>
+      <img src="assets/img/which.jpg" alt="A cutaway workshop like a dollhouse. Labelled rooms: a shelf of binders marked SKILLS, a wall of pinned notes marked CLAUDE.MD, a loading dock marked MCP where a delivery truck plugs in a cable, a shed outside marked SETTINGS HOOKS where a person with a clipboard answers a doorbell, an assembly line of robot helpers marked MODS, a side room of apprentice robots at desks marked SUBAGENTS, and a wooden crate at the front door marked PLUGIN holding all of them." width="1536" height="1024">
+      <figcaption>The same kitchen as the <a href="eli5.html">five-year-old's version</a>, drawn as a building. Everything in the house can be packed into the crate at the door.</figcaption>
+    </figure>
+
+    <h2>The whole map in one table</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Extension point</th><th>What it is</th><th>Who decides it runs</th><th>What it can change</th><th>Context cost</th></tr>
+      <tr><td><strong>CLAUDE.md</strong> (and <code>AGENTS.md</code>)</td><td>Markdown instructions loaded into every conversation</td><td>Always on</td><td>What Claude knows and tends to do. Advisory: Claude can still choose otherwise.</td><td>Every request</td></tr>
+      <tr><td><strong>Skill</strong></td><td>A folder with <code>SKILL.md</code>, plus optional scripts and references</td><td>Claude, from the description, or you by name</td><td>What Claude knows and does for one kind of task</td><td>The description always; the body when used</td></tr>
+      <tr><td><strong>Custom slash command</strong></td><td>A Markdown prompt you invoke as <code>/name</code></td><td>You</td><td>The prompt Claude receives. It still starts a Claude turn.</td><td>When invoked</td></tr>
+      <tr><td><strong>Subagent</strong></td><td>An agent definition (<code>agents/*.md</code>) with its own prompt, tools and model</td><td>Claude delegates, or you ask</td><td>Who does a piece of work, in a fresh context</td><td>Its own context; the result comes back as text</td></tr>
+      <tr><td><strong>Output style</strong></td><td>A system-prompt variant for tone and format</td><td>You pick it</td><td>How Claude writes</td><td>Every request</td></tr>
+      <tr><td><strong>MCP server</strong></td><td>An external process or service that offers tools, resources and prompts</td><td>Claude calls its tools</td><td>Which tools Claude has: databases, APIs, browsers</td><td>Tool names; schemas load through tool search</td></tr>
+      <tr><td><strong>Permission rules</strong></td><td><code>allow</code>, <code>ask</code> and <code>deny</code> patterns in settings</td><td>Every tool call</td><td>Whether a call runs, asks or is refused. Declarative, so it can't inspect content beyond the pattern.</td><td>None</td></tr>
+      <tr><td><strong>Settings hook</strong> ("classic")</td><td>A shell command, HTTP call, prompt, agent or MCP tool run on a lifecycle event, JSON in and out</td><td>The event</td><td>Block, allow or annotate a tool call or prompt. Rewrite a call's input or result. Add context.</td><td>Only what it adds</td></tr>
+      <tr><td><strong>Status line</strong></td><td>A script whose output is shown under the prompt</td><td>Each redraw</td><td>One line of the screen</td><td>None</td></tr>
+      <tr><td><strong>Mod</strong></td><td>TS or JS functions running inside Claude Code, chained on 46 engine events</td><td>The event</td><td>Tool calls, prompts, the system prompt, model requests, subagents, commands, compaction, stored rows, and what the interface draws</td><td>None unless it adds text</td></tr>
+      <tr><td><strong>Plugin</strong></td><td>A package of any of the above, installed from a marketplace</td><td>You install it</td><td>Whatever it carries</td><td>The sum of its parts</td></tr>
+    </table></div>
+    <p>Two more sit outside the box: the <strong>Agent SDK</strong>, for running Claude Code inside your own program, and <strong>managed settings</strong>, which an organization uses to decide which of all the above may load.</p>
+
+    <h2>Mods next to their neighbours</h2>
+    <p>The four most often confused are mods, settings hooks, skills and MCP servers. This expands the official comparison:</p>
+    <div class="table-wrap"><table>
+      <tr><th></th><th>Mod</th><th>Settings hook</th><th>Skill</th><th>MCP server</th></tr>
+      <tr><td>Runs</td><td>In Claude Code's process (a worker thread), loaded once, keeps state</td><td>Spawned per event: shell, HTTP, prompt, agent or MCP tool</td><td>Not at all. Claude reads it.</td><td>A separate process or remote service</td></tr>
+      <tr><td>Several at once</td><td>A sequential, <strong>ordered</strong> chain. Each one sees what the one before passed on.</td><td>Run <strong>in parallel</strong>. The most restrictive decision wins. Input rewrites are last-writer-wins.</td><td>Claude picks</td><td>All tools available</td></tr>
+      <tr><td>Can draw</td><td>Panes, a band, restyled rows, spinner, dialogs</td><td>No</td><td>No</td><td>No</td></tr>
+      <tr><td>Adds commands</td><td>Yes: code that runs with no Claude turn, even mid-turn</td><td>No</td><td>Yes: a prompt that starts a turn</td><td>MCP prompts appear as commands</td></tr>
+      <tr><td>Adds tools</td><td>Yes (<code>$.tool.register</code>), served by its own hook</td><td>No</td><td>No (it can tell Claude to run scripts)</td><td>Yes, that's the point</td></tr>
+      <tr><td>Can fail open</td><td>Yes: a hook that throws or overruns is skipped unless it has <code>.catch</code></td><td>Depends on exit code and config</td><td>n/a</td><td>A failed tool is an error result</td></tr>
+      <tr><td>Language</td><td>TypeScript or JavaScript</td><td>Anything that reads stdin</td><td>Markdown</td><td>Anything</td></tr>
+      <tr><td>Reviewable before install</td><td><code>claude plugin validate</code> lists hooks and calls</td><td>Read the script</td><td>Read the Markdown</td><td>Read the server</td></tr>
+    </table></div>
+
+    <h2>One job, five ways: "never run <code>rm -rf</code>"</h2>
+    <p>The clearest way to feel the differences is to try the same job with each one and ask what it actually guarantees.</p>
+    <div class="table-wrap"><table>
+      <tr><th>Approach</th><th>What it looks like</th><th>What it guarantees</th></tr>
+      <tr><td>CLAUDE.md</td><td>"Never run <code>rm -rf</code>; ask me instead."</td><td>Nothing. It's advice. Claude usually follows it, and a long session or an odd prompt can drift.</td></tr>
+      <tr><td>Skill</td><td>A "safe cleanup" skill that explains alternatives</td><td>Nothing, and it only loads when the task looks like cleanup. The wrong tool for a prohibition.</td></tr>
+      <tr><td>Permission rule</td><td><code>"deny": ["Bash(rm -rf:*)"]</code></td><td>That pattern is refused. It's declarative and fast, and it misses <code>rm -fr</code>, <code>rm -r -f</code> and <code>find … -delete</code>.</td></tr>
+      <tr><td>Settings hook</td><td>A <code>PreToolUse</code> script that parses the command and exits with a block</td><td>Whatever your script checks, in any language. It runs in parallel with other hooks and can't show UI. A managed one runs before any mod.</td></tr>
+      <tr><td>Mod</td><td>A <code>tool.call</code> guard with <code>.catch</code>, or one that holds the call and asks with <code>$.ui.ask</code></td><td>Whatever your code checks, in a known order, with UI. It fails open without <code>.catch</code>. A worker crash loop unloads it.</td></tr>
+    </table></div>
+    <p>In practice: the deny rule for the obvious spelling, a hook or mod for the rest, and a CLAUDE.md line so Claude doesn't try in the first place. Layers, not a winner.</p>
+
+    <h2>Pick one</h2>
+    <div class="widget" id="which-widget">
+      <h4>What do you need?</h4>
+      <p style="margin-top:0;font-size:15px">Tick everything that applies. The recommendation updates as you go.</p>
+      <div id="which-opts"></div>
+      <div class="verdict act" id="which-out" aria-live="polite">Tick a box to see a recommendation.</div>
+    </div>
+    <noscript><p>The picker needs JavaScript. The table above has the same information.</p></noscript>
+
+    <h2>Rules of thumb</h2>
+    <ol>
+      <li><strong>Start with text.</strong> If you keep pasting the same instructions, write a CLAUDE.md line (always relevant) or a skill (relevant to one kind of task). It's cheap, readable and easy to change.</li>
+      <li><strong>Need a new ability? MCP.</strong> If Claude must reach a system it can't reach today, that's a tool, and tools come from MCP servers. A mod can register a tool too, which is handy when the tool needs session state the mod already has.</li>
+      <li><strong>Need isolation? A subagent.</strong> A separate context for a big search or a review, possibly on a cheaper model. A mod can pin which model a subagent uses (<code>agent.spawn</code>) or hide an agent type (<code>agent.offer</code>).</li>
+      <li><strong>Need a guarantee? Rules first, then hooks or mods.</strong> Permission rules for patterns. A settings hook if you already have the script, or if you need it to run before any mod (managed). A mod if you need order, state, UI or to rewrite the event.</li>
+      <li><strong>Need to draw, or to run code on a command with no Claude turn? Only a mod can.</strong></li>
+      <li><strong>Shipping several? A plugin.</strong> One install can bring a skill, an MCP server, a subagent and a mod that work together.</li>
+    </ol>
+
+    <h2>Where a decision model fits</h2>
+    <p>Our sister site, <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, studies decision models: fast, typed judgments such as "is this command destructive?" with a probability attached. A decision model is a <em>callee</em>, not an extension point. In Decision Tier's words, <strong>mods and hooks call decision models; skills and CLAUDE.md teach Claude when to trust them.</strong></p>
+    <ul>
+      <li><strong>From a mod or settings hook:</strong> a <code>$.http.fetch</code> in a guard, with a timeout and <code>.catch</code> failing closed. This is the hot path. See <a href="cascade.html">Mods meet the cascade</a>.</li>
+      <li><strong>As an MCP tool:</strong> only when you want Claude to choose to ask for a judgment. That's rarely what you want, because then the expensive tier decides when to consult the cheap one.</li>
+      <li><strong>Never as a skill or subagent.</strong> A skill is instructions, not a judge, and a subagent is another LLM.</li>
+    </ul>

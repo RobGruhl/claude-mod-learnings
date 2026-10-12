@@ -1,0 +1,1 @@
+{ "name": "live-probe", "version": "0.1.0", "description": "Probes the live hooks worker from a headless session, then drops the prompt so no model call is made", "author": { "name": "Rob Gruhl" } }

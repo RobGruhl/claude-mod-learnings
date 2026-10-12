@@ -1,0 +1,100 @@
+    <p class="eyebrow"><span class="badge build">Build</span> A facilitated tutorial for Claude Code</p>
+    <h1>Build your own mod skeleton</h1>
+    <p class="lede">Reading about hook chains only goes so far. <strong>The Mod Skeleton 101</strong> is a tutorial you run inside Claude Code. Claude facilitates: it teaches one idea, makes one small change, asks you to predict the result, runs the check for real, commits, and asks you a question. You end with a small mod you built and tested yourself, and a git history that tells the story one layer per commit.</p>
+
+    <figure>
+      <img src="assets/img/skeleton.jpg" alt="An illustrated skeleton assembling a small mod from three labelled files, plugin.json, hooks.json and register.ts, with a test bench and a guard gate beside it." width="1536" height="1024">
+    </figure>
+
+    <h2>What you'll build</h2>
+    <p><code>skeleton-guard</code> is the smallest mod with the real shape: three files, a test, a guard that fails closed, state that survives <code>/clear</code>, and an install line someone else can use. By the end it:</p>
+    <ul>
+      <li>counts Claude's tool calls and shows the count on the spinner and in a band above the prompt</li>
+      <li>answers its own <code>/skeleton</code> command without starting a Claude turn</li>
+      <li>holds <code>rm -rf</code>, force pushes and <code>git reset --hard</code>, and still holds them when the guard itself breaks</li>
+      <li>refuses <code>@</code>-mentioned secret files, which no <code>tool.call</code> guard ever sees</li>
+      <li>keeps per-session counts in <code>$.state</code> and all-time counts in <code>$.store</code></li>
+      <li>has tests, type-checks against your own build, and installs from a marketplace</li>
+    </ul>
+    <p>On the way you watch three things go wrong on purpose, each in a test: a guard that fails open when it throws, an <code>@</code>-mentioned <code>.env</code> slipping past a <code>tool.call</code> guard, and a misspelling that <code>claude plugin validate</code> passes and the compiler catches.</p>
+
+    <h2>Who it's for</h2>
+    <div class="two-col">
+      <div class="callout"><p class="kicker">You drive Claude Code and want to change it</p><p>You've used skills, settings hooks or MCP servers and want to know what a mod adds, and how to write one you'd trust in your own sessions. Claude reads each snippet aloud in plain words before writing it.</p></div>
+      <div class="callout"><p class="kicker">You write TypeScript and want the model right</p><p>You'll move fast through the syntax and spend the time on the chain: who runs first, which hooks fail open, what each kind of state outlives, and what the test kit stands in for.</p></div>
+    </div>
+
+    <h2>How to start</h2>
+<pre><code>git clone https://github.com/RobGruhl/claude-mod-learnings
+cd claude-mod-learnings/tutorial
+claude</code></pre>
+    <p>The folder's own <code>CLAUDE.md</code> turns Claude into the facilitator: it greets you, checks your setup, and offers to start, resume, or run a 201 direction. Your mod is built in <code>tutorial/my-mod/</code> as its own git repository, and the tutorial files stay untouched. If Claude doesn't start on its own, say: <em>"Walk me through the Mod Skeleton 101 one module at a time, following the Facilitator Contract in 101-mod-skeleton.md."</em></p>
+    <p>Coming back later? Open the folder again and say: <em>"We're partway through the Mod Skeleton 101. Read the git log in my-mod and continue from the next module."</em> Each module is one commit, so Claude can always find your place.</p>
+
+    <h3>You'll need</h3>
+    <ul>
+      <li><strong>Claude Code 2.1.287 or later</strong> (mods shipped then; the tutorial was checked on 2.1.296) and git</li>
+      <li><strong>A second terminal window.</strong> Some checks only show in a live session that loads your mod: the status line, the spinner, the band, <code>/plugin</code>. Claude can't see that screen, so you tell it what you see.</li>
+      <li>For Module 11, Node.js or Bun to run TypeScript's compiler, with a skip path</li>
+      <li>Three to four hours across a few sittings. Facilitation uses your Claude Code usage; the mod itself calls no model.</li>
+    </ul>
+
+    <h2>The modules</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th class="num">#</th><th>Module</th><th>You walk away knowing</th></tr></thead>
+      <tbody>
+        <tr><td class="num">0</td><td>Orient</td><td>What a mod can reach that a skill can't, and three ways to turn mods off</td></tr>
+        <tr><td class="num">0.5</td><td>Initialize version control</td><td>Why the typings Claude Code writes beside a mod stay out of git</td></tr>
+        <tr><td class="num">1</td><td>Three files: a tool counter</td><td><code>plugin.json</code>, <code>hooks.json</code>, <code>register(on)</code> and the <code>($, e, next)</code> hook</td></tr>
+        <tr><td class="num">2</td><td>Read it like a reviewer</td><td><code>validate</code>'s <code>hooks:</code> and <code>calls:</code> lines, and the reserved names</td></tr>
+        <tr><td class="num">3</td><td>The first test</td><td>The kit sits beneath your mod, so a test answers every event and <code>$</code> call</td></tr>
+        <tr><td class="num">4</td><td>Rewrite what Claude Code draws</td><td>Rewrite with <code>next({ ...e })</code>, and why that's politer than replacing</td></tr>
+        <tr><td class="num">5</td><td>Answer for yourself: a slash command</td><td>A command that runs your code with no Claude turn</td></tr>
+        <tr><td class="num">6</td><td>A guard on <code>tool.call</code></td><td><code>{ deny }</code>, and that the deny reason is a prompt to the model</td></tr>
+        <tr><td class="num">7</td><td>Make the guard fail closed</td><td>A guard that throws is skipped and the call runs, unless it has a <code>.catch</code></td></tr>
+        <tr><td class="num">8</td><td>The second door</td><td><code>@</code>-mentioned files are read with no tool call; guard <code>prompt.mention</code> too</td></tr>
+        <tr><td class="num">9</td><td>State that redraws</td><td><code>$.state</code>, the <code>PluginState</code> contract, and a band above the prompt</td></tr>
+        <tr><td class="num">10</td><td>State that lasts</td><td><code>$.store</code> as the source of truth, and the <code>/clear</code> trap</td></tr>
+        <tr><td class="num">11</td><td>Type-check against your build</td><td>What the compiler catches that <code>validate</code> doesn't</td></tr>
+        <tr><td class="num">12</td><td>README and CLAUDE.md</td><td>An install line for people, and rules for the next agent</td></tr>
+        <tr><td class="num">13</td><td>Package and install</td><td>The mod's folder as its own marketplace, and what a version number does</td></tr>
+        <tr><td class="num">14</td><td>Ship one change</td><td>Test first, every check, a version bump, and a short review</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2>How a module feels</h2>
+    <ol class="steps">
+      <li><strong>Learn the idea</strong> in a few plain sentences.</li>
+      <li><strong>Make one small change.</strong> Claude proposes and writes it; you see the diff.</li>
+      <li><strong>Predict.</strong> "Will the guard hold this call when it throws?" "Will <code>validate</code> catch the misspelling?" Claude stops and waits for your answer.</li>
+      <li><strong>Run the check for real</strong> (<code>claude plugin validate</code>, <code>claude plugin test</code>, or what you see in your live session) and compare it with your prediction.</li>
+      <li><strong>Commit</strong> as <code>module N: title</code>.</li>
+      <li><strong>Reflect.</strong> Answer a question in your own words before Claude shows the expected answer.</li>
+    </ol>
+
+    <h2>The rules Claude follows</h2>
+    <ul>
+      <li><strong>One module at a time</strong>, and after every prediction or reflection question it ends its message and waits.</li>
+      <li><strong>Every check runs for real.</strong> Checks in your live session are yours to report; Claude records what you say and never fills it in.</li>
+      <li><strong>No new reach without saying so.</strong> A mod runs with your permissions, so Claude never adds a network call, a process or a file write outside your mod without asking.</li>
+      <li><strong>The declarations win.</strong> The mods API is early access; where the script and the types your build wrote disagree, Claude says so and follows the types.</li>
+      <li>After about three failed attempts at the same check, <strong>stop and explain</strong> instead of thrashing.</li>
+    </ul>
+    <p>Every snippet in the script was run on Claude Code 2.1.296: <code>validate</code> and <code>test</code> passed at each stage, and each failure the script predicts was seen. The finished mod is in <a href="https://github.com/RobGruhl/claude-mod-learnings/tree/main/tutorial/.reference/skeleton-guard">tutorial/.reference/skeleton-guard</a>, and the full script is <a href="https://github.com/RobGruhl/claude-mod-learnings/blob/main/tutorial/101-mod-skeleton.md">tutorial/101-mod-skeleton.md</a>.</p>
+
+    <h2>After the 101</h2>
+    <p>The <a href="https://github.com/RobGruhl/claude-mod-learnings/blob/main/tutorial/201-next-steps.md">201</a> offers seven directions, each run the same way:</p>
+    <div class="cards">
+      <div class="card"><h3>A pane with buttons</h3><p>A panel opened from <code>/skeleton</code>, buttons that raise <code>ui.press</code>, and a mount test on two surfaces.</p></div>
+      <div class="card"><h3>A real policy</h3><p>An allow-list on resolved paths with <code>$.fs.stat</code>, plus a <code>tool.check</code> hook. Stronger than any list of spellings.</p></div>
+      <div class="card"><h3>Hold and ask</h3><p>Ask the person with <code>$.ui.ask</code> instead of denying, and test the timeout that would otherwise let the call through.</p></div>
+      <div class="card"><h3>A decision tier</h3><p>A model judges only what the patterns can't settle, with a fallback to the person on timeout. See <a href="cascade.html">Mods meet the cascade</a>.</p></div>
+      <div class="card"><h3>Options</h3><p><code>userConfig</code> for extra patterns, tested with <code>test(name, { options }, body)</code>.</p></div>
+      <div class="card"><h3>Publish with CI</h3><p>A public repo, the install line tested from a clean session, and CI running <code>validate --strict</code> and <code>test</code>.</p></div>
+      <div class="card"><h3>A tool for Claude</h3><p><code>$.tool.register</code>, served by the mod's own <code>tool.call</code> hook.</p></div>
+    </div>
+
+    <h2>Where the format comes from</h2>
+    <p>The facilitation design comes from the <a href="https://walkingskeleton.org/">Walking Skeleton tutorial</a>: one module at a time, a prediction before every check, every check run for real, one commit per module, a circuit breaker, and resuming from the git log. That tutorial builds a production-shaped web app; this one applies the same method to a mod. The sister site's <a href="https://robgruhl.github.io/jev-learnings/build.html">Decision Skeleton</a> applies it to a decision cascade.</p>
+
+    <div class="callout note"><p><strong>Prefer a five-minute version first?</strong> The <a href="eli5.html">ELI5</a> and <a href="101.html">101</a> pages cover the ideas the tutorial makes you build.</p></div>

@@ -1,0 +1,1 @@
+{ "name": "e3-moves", "version": "0.1.0", "description": "Observe, rewrite, answer, post-process and retry on tool.call", "author": { "name": "Rob Gruhl" } }

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The hook chain · Hook Chain</title>
+<meta name="description" content="How a tool call travels: managed hooks, prepend, user, append, builtin, core, and the way back up.">
+<meta property="og:title" content="The hook chain · Hook Chain">
+<meta property="og:description" content="How a tool call travels: managed hooks, prepend, user, append, builtin, core, and the way back up.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://robgruhl.github.io/claude-mod-learnings/chain.html">
+<meta property="og:image" content="https://robgruhl.github.io/claude-mod-learnings/assets/img/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+  try { var t = localStorage.getItem("hc-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+</head>
+<body class="inner">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Hook Chain</span></a>
+  <div class="topbar-actions">
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="sidenav">Menu</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="sidenav" class="sidenav" aria-label="Site">
+    <a class="nav-start" href="index.html">Start here</a>
+    <div class="nav-group"><p class="nav-head">Learn</p><ul><li><a href="eli5.html">Explain like I&#x27;m five</a></li><li><a href="101.html">101 · What a mod is</a></li><li><a href="201.html">201 · Writing mods well</a></li><li><a href="301.html">301 · Engineering &amp; policy</a></li></ul></div><div class="nav-group"><p class="nav-head">Architecture</p><ul><li><a href="which.html">Mods vs skills vs MCP…</a></li><li><a href="chain.html" aria-current="page">The hook chain</a></li><li><a href="lifetimes.html">What lasts how long</a></li><li><a href="cascade.html">Mods meet the cascade</a></li></ul></div><div class="nav-group"><p class="nav-head">Evidence</p><ul><li><a href="fieldtests.html">Field tests</a></li><li><a href="latency.html">Latency ladder</a></li><li><a href="landscape.html">Landscape · Oct 2026</a></li></ul></div><div class="nav-group"><p class="nav-head">Build</p><ul><li><a href="build.html">Build your own</a></li></ul></div>
+    <p class="nav-foot"><a href="https://github.com/RobGruhl/claude-mod-learnings">Source on GitHub</a></p>
+  </nav>
+  <main id="main" class="content">
+    <p class="eyebrow"><span class="badge arch">Architecture</span> How an event travels</p>
+    <h1>The hook chain</h1>
+    <p class="lede">Every hook for an event joins one chain. The event goes in from the outermost seat, passes inward link by link to Claude Code's own behaviour, and the result comes back out the same way. Where a hook sits decides what it can see, what it can stop and who can overrule it.</p>
+
+    <figure>
+      <img src="assets/img/chain.jpg" alt="Concentric garden walls seen from above, tinted violet, clay, sage and gold from outside in, labelled PREPEND, USER, APPEND and BUILTIN, with a glowing brass engine labelled CORE at the center. A card travels inward through a gate in each ring, and a rolled-up result scroll travels back outward." width="1536" height="1024">
+      <figcaption>Outer rings see the event first and the result last. A ring that answers stops the card from going any further in.</figcaption>
+    </figure>
+
+    <h2>The order</h2>
+<pre><code>OUTERMOST  sees the event first, the result last
+  1. prepend   sec-default@builtin (where it loads), prependPlugins in order, other org mods
+  2. user      mods the user installed (a mod runs before the mods it depends on)
+  3. append    appendPlugins
+  4. builtin   agents-md, diff, telemetry, …
+  5. core      Claude Code itself: { plugin: 'engine', tier: 'core' }
+INNERMOST
+Within one module: the order `on` was called.</code></pre>
+
+    <h2>A tool call, end to end</h2>
+    <p>The tool path has the most layers, because settings hooks and permission checks interleave with the mod chain:</p>
+    <div class="diagram">
+      <svg viewBox="0 0 760 560" role="img" aria-label="A vertical pipeline. The model emits a tool use. Managed PreToolUse hooks run first; a block there is final. Then the mod chain on tool.call: prepend, user, append, builtin. Then core runs non-managed PreToolUse hooks, then the tool.check chain, then the permission prompt, then the tool runs. The result flows back up through the tool.call hooks.">
+        <defs>
+          <marker id="mch" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+          <marker id="mchu" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah-teal"/></marker>
+        </defs>
+        <rect x="150" y="10" width="360" height="40" rx="10" class="box"/><text x="330" y="35" text-anchor="middle" font-size="15">model emits tool_use</text>
+        <rect x="150" y="70" width="360" height="44" rx="10" class="box-navy"/><text x="330" y="90" text-anchor="middle" font-size="15" font-weight="700">managed PreToolUse hooks</text><text x="330" y="107" text-anchor="middle" font-size="12" class="muted">a block here is final; no mod sees the call</text>
+        <rect x="150" y="134" width="360" height="190" rx="12" class="box-teal"/><text x="330" y="156" text-anchor="middle" font-size="15" font-weight="700">mod chain: tool.call</text>
+        <rect x="180" y="168" width="300" height="30" rx="8" class="box"/><text x="330" y="188" text-anchor="middle" font-size="13">prepend · org policy, sec-default</text>
+        <rect x="180" y="204" width="300" height="30" rx="8" class="box"/><text x="330" y="224" text-anchor="middle" font-size="13">user · your installed mods</text>
+        <rect x="180" y="240" width="300" height="30" rx="8" class="box"/><text x="330" y="260" text-anchor="middle" font-size="13">append</text>
+        <rect x="180" y="276" width="300" height="30" rx="8" class="box"/><text x="330" y="296" text-anchor="middle" font-size="13">builtin</text>
+        <rect x="150" y="344" width="360" height="44" rx="10" class="box-amber"/><text x="330" y="364" text-anchor="middle" font-size="15" font-weight="700">core: non-managed PreToolUse hooks</text><text x="330" y="381" text-anchor="middle" font-size="12" class="muted">settings files and plugins' hooks.json</text>
+        <rect x="150" y="402" width="360" height="44" rx="10" class="box-amber"/><text x="330" y="422" text-anchor="middle" font-size="15" font-weight="700">tool.check chain</text><text x="330" y="439" text-anchor="middle" font-size="12" class="muted">next(e) = rules + mode + hooks verdict → allow | ask | deny</text>
+        <rect x="150" y="460" width="360" height="36" rx="10" class="box"/><text x="330" y="483" text-anchor="middle" font-size="14">permission prompt (no mod can draw here)</text>
+        <rect x="150" y="510" width="360" height="40" rx="10" class="box-coral"/><text x="330" y="535" text-anchor="middle" font-size="15" font-weight="700">the tool runs</text>
+        <line x1="330" y1="50" x2="330" y2="68" class="arrow" marker-end="url(#mch)"/>
+        <line x1="330" y1="114" x2="330" y2="132" class="arrow" marker-end="url(#mch)"/>
+        <line x1="330" y1="324" x2="330" y2="342" class="arrow" marker-end="url(#mch)"/>
+        <line x1="330" y1="388" x2="330" y2="400" class="arrow" marker-end="url(#mch)"/>
+        <line x1="330" y1="446" x2="330" y2="458" class="arrow" marker-end="url(#mch)"/>
+        <line x1="330" y1="496" x2="330" y2="508" class="arrow" marker-end="url(#mch)"/>
+        <path d="M512,530 C600,530 600,160 512,160" class="arrow-down" marker-end="url(#mchu)"/>
+        <text x="604" y="340" font-size="13" class="muted">result flows</text><text x="604" y="358" font-size="13" class="muted">back up through</text><text x="604" y="376" font-size="13" class="muted">tool.call hooks</text>
+        <text x="20" y="226" font-size="12" class="muted">each hook: observe,</text><text x="20" y="242" font-size="12" class="muted">rewrite, deny, answer,</text><text x="20" y="258" font-size="12" class="muted">retry, post-process</text>
+      </svg>
+    </div>
+    <ul>
+      <li><strong>Managed <code>PreToolUse</code> hooks run first</strong>, and run again on any call a mod rewrote. This is the one layer a mod can't get in front of.</li>
+      <li><strong><code>tool.call</code> is where mods guard and rewrite.</strong> A hook can answer with <code>{ deny }</code> or its own <code>{ result }</code>, and nothing beneath it runs.</li>
+      <li><strong><code>tool.check</code> is the permission decision.</strong> <code>next(e)</code> returns what rules, the permission mode and settings hooks decided, and a hook can return its own <code>{ decision }</code>. Where the <code>sec-default</code> guard loads, a user mod can't lift a managed <code>deny</code>. Since 2.1.290 the event carries <code>agentId</code> and the org's <code>ceiling</code>.</li>
+      <li><strong>The permission prompt isn't a render site.</strong> A mod can restyle almost everything else, but not what you're asked to approve.</li>
+    </ul>
+
+    <h2>Try it: a chain simulator</h2>
+    <div class="widget" id="chain-widget">
+      <h4>A Bash call: <code>rm -rf build</code></h4>
+      <p style="margin-top:0;font-size:15px">Choose what the hook in each seat does, then read what happens. This simulates the documented rules; it doesn't run Claude Code.</p>
+      <div id="chain-seats"></div>
+      <div class="verdict act" id="chain-out" aria-live="polite"></div>
+      <ol id="chain-trace" style="font-size:14.5px;margin-bottom:0"></ol>
+    </div>
+
+    <h2>Tools an outer hook has</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Tool</th><th>What it does</th></tr>
+      <tr><td><code>next(e)</code> / <code>next({ ...e })</code></td><td>Continue inward, unchanged or rewritten. Resolves to the result from everything beneath.</td></tr>
+      <tr><td>Return without <code>next</code></td><td>Answer. Nothing beneath runs.</td></tr>
+      <tr><td><code>await next(e)</code>, then edit</td><td>Post-process the result on its way out.</td></tr>
+      <tr><td>Call <code>next</code> twice</td><td>Retry what's beneath.</td></tr>
+      <tr><td><code>next.to(e, 'append' | 'builtin' | 'core')</code></td><td>Prepend and append mods only: skip the user tier.</td></tr>
+      <tr><td><code>next.origin</code></td><td>Who raised the event. Because every <code>$</code> call is an event, a prepended hook on <code>fs.read</code> sees which mod asked.</td></tr>
+      <tr><td><code>next.signal</code></td><td>Aborts when the dispatch is abandoned.</td></tr>
+      <tr><td><code>.catch(handler)</code></td><td>Runs if the hook throws, times out or is re-entered. <code>next.called</code> says whether it got as far as <code>next</code>.</td></tr>
+    </table></div>
+
+    <h2>Why order beats parallel</h2>
+    <p>Settings hooks for the same event run in parallel. When they disagree, the most restrictive decision wins, and when two rewrite a call's input, the last writer wins, in no fixed order. That's fine for allow-or-block and awkward for anything that composes. Mods run in sequence, so a redactor can run before a logger and the logger sees redacted text. A policy mod in prepend sees every user mod's rewrite before core does, and can audit or refuse every user mod's <code>$</code> calls. The price of order is that a slow hook delays everything inside it, and a failed one is skipped unless it says otherwise.</p>
+
+    <h2>Other chains worth knowing</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Event</th><th>What a hook's answer means</th></tr>
+      <tr><td><code>prompt.submit</code></td><td>Rewrite <code>text</code> (the transcript shows the new text), add Claude-only <code>context</code>, or <code>{ drop }</code>.</td></tr>
+      <tr><td><code>prompt.compose</code></td><td>The whole system prompt as <code>{ sections: [{ id, text, scope }] }</code>. <code>scope: 'shared'</code> sits before the cache boundary. Text that changes between requests breaks the prompt cache.</td></tr>
+      <tr><td><code>turn.step</code></td><td>An async generator per model request. <code>yield* next(e)</code> streams through. A hook can change <code>model</code> or <code>effort</code>, rewrite chunks, or answer without calling the model.</td></tr>
+      <tr><td><code>agent.spawn</code></td><td>Rewrite a subagent's prompt, type, model or working folder, or <code>{ deny }</code>. Covers teammates (2.1.289) and workflow agents (2.1.292).</td></tr>
+      <tr><td><code>session.append</code></td><td>Rewrite a stored row's <code>content</code>, for example to redact it. A row the engine appends is never refused.</td></tr>
+      <tr><td><code>ui.render</code> on <code>AbovePrompt</code></td><td>Returning your own tree hides what mods further in drew, unless you embed <code>await next(e)</code>.</td></tr>
+    </table></div>
+
+<nav class="pager" aria-label="Page navigation"><a class="pager-prev" href="which.html"><span>Previous</span>Which extension point?</a><a class="pager-next" href="lifetimes.html"><span>Next</span>What lasts how long</a></nav>
+    <footer class="footer">
+      <p>An independent study of Claude Code mods, not an Anthropic project. Mods shipped on 1 October 2026 in Claude Code 2.1.287; everything here was checked against 2.1.296 on October 12, 2026. The API is early access, so trust the types your own build writes over anything on this site.</p>
+      <p>Sister site: <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, a field guide to decision models. Text © Rob Gruhl, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>; code samples MIT. Illustrations made with gpt-image-2. Built with Claude Code.</p>
+    </footer>
+  </main>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "cascade-guard",
+  "version": "0.1.0",
+  "description": "A Bash guard in tiers: rules in code, then a decision model, then the person; every ruling is remembered so the next one stays in code",
+  "author": { "name": "Rob Gruhl" },
+  "userConfig": {
+    "judgeUrl": { "type": "string", "title": "Decision model endpoint", "description": "POST { command } and get back { probability, doubt }", "default": "" }
+  }
+}

@@ -1,0 +1,1 @@
+{ "name": "e2-order", "version": "0.1.0", "description": "Hook order within a module and across tiers, and next.origin", "author": { "name": "Rob Gruhl" } }

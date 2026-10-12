@@ -1,0 +1,65 @@
+    <p class="eyebrow"><span class="badge l0">Level 0</span> Five minutes · no jargon</p>
+    <h1>Explain like I'm five</h1>
+    <p class="lede">Imagine a busy restaurant kitchen. A head chef cooks every dish. Order tickets come in all day, and each one travels along a rail to the chef.</p>
+
+    <figure>
+      <img src="assets/img/eli5.jpg" alt="A cozy kitchen. Order tickets slide along a rail past three small helper robots in aprons before reaching a smiling chef at a stove. One helper reads a ticket with a magnifying glass, one crosses something out with a pencil, one holds up a sold-out paddle. Another hangs a chalkboard of tally marks. On the wall are recipe binders and a corkboard of notes, and a delivery van unloads at the back door." width="1536" height="1024">
+    </figure>
+
+    <h2>The chef is Claude Code</h2>
+    <p>The chef is very good. Give the chef a ticket that says "read this file" or "run this command" and it gets done. Claude, the AI, is the one writing the tickets. The chef, Claude Code, is the one doing the cooking.</p>
+    <p>Usually the ticket goes straight from Claude to the chef. A <strong>mod</strong> puts a helper on the rail, between the ticket and the stove.</p>
+
+    <h2>What a helper can do with a ticket</h2>
+    <p>Every helper on the rail gets the ticket before the chef does. A helper can do one of three things:</p>
+    <ol>
+      <li><strong>Look and pass it on.</strong> "A soup order. I'll make a tally mark." The ticket goes on unchanged. This is <em>observing</em>.</li>
+      <li><strong>Change it and pass it on.</strong> "This says onions, and the customer is allergic. I'll cross that out." The chef sees the new ticket. This is <em>rewriting</em>.</li>
+      <li><strong>Keep it.</strong> "We're out of fish. I'll tell the customer myself." The chef never sees that ticket. This is <em>answering</em>.</li>
+    </ol>
+    <p>When the chef finishes a dish, it travels back past the same helpers in reverse. A helper can add a garnish on the way out.</p>
+
+    <div class="big-rule">Look and pass it on. Change it and pass it on. Or keep it and answer yourself.</div>
+
+    <h2>Helpers can redecorate, too</h2>
+    <p>Some helpers don't touch the food. They hang a chalkboard in the dining room showing how many orders came in today. Or they put up a little sign by the door. That's a mod <strong>drawing</strong> in Claude Code's screen: a panel beside the conversation, a line above the place you type, a new look for the spinner.</p>
+
+    <h2>The rest of the kitchen</h2>
+    <p>Mods aren't the only way to change how the kitchen runs. There are other ways, and each is good at something different:</p>
+    <ul>
+      <li><strong>A note pinned on the wall</strong> ("we never use peanuts") is <strong>CLAUDE.md</strong>. Everyone reads it every day.</li>
+      <li><strong>A recipe binder on the shelf</strong> is a <strong>skill</strong>. The chef takes it down only when cooking that dish.</li>
+      <li><strong>A delivery van</strong> that brings new ingredients and tools is an <strong>MCP server</strong>. It gives the kitchen things it didn't have.</li>
+      <li><strong>A bell that rings a person outside</strong>, who shouts back "OK!" or "Stop!", is a <strong>settings hook</strong>. It works, but the person is outside and can only shout.</li>
+      <li><strong>A helper standing right on the rail</strong> is a <strong>mod</strong>. It's inside the kitchen, it remembers things between tickets, and it can change anything that passes.</li>
+    </ul>
+    <p>A <strong>plugin</strong> is the box all of these come in when you bring them to a new kitchen.</p>
+
+    <h2>Who goes first?</h2>
+    <p>Helpers stand in a fixed order. The restaurant owner's helpers stand closest to the door, so they see every ticket first. The owner's helpers are the people your workplace puts there. Your own helpers come next, then the kitchen's own built-in ones, then the chef. Because the owner's helpers see a ticket first, they can make sure nobody behind them breaks the house rules.</p>
+
+    <h2>Two warnings</h2>
+    <ul>
+      <li><strong>A helper who faints lets the ticket through.</strong> If a helper gets confused or takes too long, the kitchen skips them and the ticket goes on to the chef. A helper whose job is to stop dangerous tickets needs a backup plan that says "if I'm not sure, stop it." In mods that backup plan is called <code>.catch</code>.</li>
+      <li><strong>Helpers can do anything you can do.</strong> They aren't locked in a box. A helper you bring in can open the fridge, read the mail and use the phone. Only hire helpers you trust. You can read a helper's job list before you hire them with <code>claude plugin validate</code>.</li>
+    </ul>
+
+    <h2>What helpers remember</h2>
+    <p>A helper can remember things in three ways:</p>
+    <ul>
+      <li><strong>In their head.</strong> Forgotten whenever the helper takes a break and comes back (a reload).</li>
+      <li><strong>On a whiteboard.</strong> Kept all shift, but wiped clean when someone says "start over" (<code>/clear</code>).</li>
+      <li><strong>In a ledger in the safe.</strong> Kept for good, shift after shift.</li>
+    </ul>
+    <p>If a helper copies the whiteboard into the ledger, they have to check the ledger first after the board gets wiped. Otherwise they write zero over a real number. We made exactly this mistake in one of our own mods.</p>
+
+    <h2>What to remember</h2>
+    <ol>
+      <li>A mod is a helper standing on the rail between Claude and Claude Code.</li>
+      <li>It can look, change or answer, and it can redecorate the room.</li>
+      <li>Use the lightest tool that does the job: a note, a recipe, a delivery, a bell or a helper.</li>
+      <li>A helper whose job is to stop things needs a backup plan for when it faints.</li>
+      <li>Only hire helpers you trust, and read their job list first.</li>
+    </ol>
+
+    <div class="callout note"><p><strong>Ready for the grown-up version?</strong> <a href="101.html">Mods 101</a> uses the same kitchen with the real names: <code>register</code>, <code>on</code>, <code>$</code>, <code>e</code> and <code>next</code>.</p></div>

@@ -1,0 +1,7 @@
+{
+  "name": "skeleton-guard",
+  "version": "0.2.0",
+  "description": "The Mod Skeleton: counts tool calls, holds destructive shell commands and secret files, and shows a tally above the prompt",
+  "types": "./types/index.d.ts",
+  "author": { "name": "A Mod Skeleton learner" }
+}

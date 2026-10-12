@@ -1,0 +1,1 @@
+{ "name": "e1-fail-open", "version": "0.1.0", "description": "A guard that throws, with and without .catch", "author": { "name": "Rob Gruhl" } }

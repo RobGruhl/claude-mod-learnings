@@ -1,0 +1,62 @@
+    <p class="eyebrow"><span class="badge arch">Architecture</span> Module variables, $.state, $.store</p>
+    <h1>What lasts how long</h1>
+    <p class="lede">A mod can keep a value in three places, and each one forgets at a different moment. Most mod bugs we have seen, including one in our own sample, come from a value that lived one tier shorter than its author thought.</p>
+
+    <figure>
+      <img src="assets/img/lifetimes.jpg" alt="Three storage objects on a workbench. A robot wipes a chalk slate labelled MODULE VARIABLE. A whiteboard on an easel with an hourglass and a broom is labelled $.STATE. A leather ledger in an open iron safe with a calendar behind it is labelled $.STORE." width="1536" height="1024">
+    </figure>
+
+    <h2>The three tiers</h2>
+    <div class="table-wrap"><table>
+      <tr><th></th><th>Module variable</th><th><code>$.state</code></th><th><code>$.store</code></th></tr>
+      <tr><td>What it is</td><td>Plain JS in your file, shared by every hook in it</td><td>Named, versioned values Claude Code holds for the session</td><td>A JSON file per plugin under <code>~/.claude/plugins/store/</code></td></tr>
+      <tr><td>Scope</td><td>One module instance</td><td>One session</td><td><strong>Every session on the machine</strong> for this plugin</td></tr>
+      <tr><td>Survives a hot reload</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>Survives <code>/clear</code>, <code>/resume</code>, <code>/branch</code></td><td>Yes, if no reload happens</td><td><strong>No: reset to defaults</strong></td><td>Yes</td></tr>
+      <tr><td>Survives a new session</td><td>No</td><td>No</td><td>Yes, until deleted or unused for <code>cleanupPeriodDays</code></td></tr>
+      <tr><td>Redraws readers</td><td>No; call <code>$.ui.invalidate</code></td><td>Yes, exactly the sites that read it</td><td>No</td></tr>
+      <tr><td>Limits</td><td>Memory</td><td>Declared in <code>PluginState</code>; render hooks can't write</td><td>4 MiB per plugin; get and set not atomic across sessions</td></tr>
+    </table></div>
+    <p>Timers from <code>$.clock.every</code> and <code>$.clock.after</code> live as long as module variables: they're dropped on every reload. Files written with <code>$.fs</code> last as long as the disk, with 4 MiB per file and non-atomic writes.</p>
+
+    <h2>What triggers each reset</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Moment</th><th>Module vars and timers</th><th><code>$.state</code></th><th><code>$.store</code></th><th>Events you get</th></tr>
+      <tr><td>Save a watched file, <code>/reload-plugins</code>, change an option</td><td>Lost</td><td>Kept</td><td>Kept</td><td><code>register</code> runs again in a fresh environment, then <code>session.start</code></td></tr>
+      <tr><td><code>/clear</code></td><td>Kept</td><td><strong>Reset</strong></td><td>Kept</td><td><code>session.end</code> with <code>reason: 'clear'</code>, then <code>classic.SessionStart</code> with <code>source: 'clear'</code>. No <code>session.start</code>.</td></tr>
+      <tr><td><code>/resume</code>, <code>/branch</code></td><td>Kept</td><td><strong>Reset</strong></td><td>Kept</td><td><code>classic.SessionStart</code> with <code>source: 'resume'</code> or <code>'fork'</code></td></tr>
+      <tr><td>Hooks worker lost and restarted</td><td>Lost</td><td>Lost</td><td>Kept</td><td>The hook that was running runs again in the fresh copy</td></tr>
+      <tr><td>Quit Claude Code</td><td>Lost</td><td>Lost</td><td>Kept</td><td><code>session.end</code>; all such hooks share 1.5 s</td></tr>
+    </table></div>
+
+    <h2>The trap, and the fix</h2>
+    <p>Our <code>ledger</code> sample counts turns and tool calls for this session and for all time. It showed both in a band above the prompt. It kept the all-time tally in <code>$.state</code> so the band redrew on each change, and in <code>$.store</code> so the tally outlived the session. It loaded the store into state in <code>session.start</code>.</p>
+    <p>Then someone ran <code>/clear</code>. <code>$.state</code> went back to zero, and <code>session.start</code> didn't fire, so nothing reloaded it. The next tool call read zero from state, added one and saved <strong>1</strong> over the real total in the store.</p>
+    <div class="two-col">
+      <div class="callout warn"><p class="kicker">Before</p><p>Every write starts from <code>$.state</code>. State is treated as the truth and the store as a backup.</p></div>
+      <div class="callout"><p class="kicker">After</p><p>Every write starts from <code>$.store</code>. State is only a mirror for drawing. A <code>classic.SessionStart</code> hook reloads the mirror after <code>clear</code>, <code>resume</code> and <code>fork</code>.</p></div>
+    </div>
+<pre><code>async function bump($: EngineInterface, field: keyof Tally) {
+  const before = ((await $.store.get(KEY)) as Tally | undefined) ?? ZERO   // the truth
+  const total = { ...before, [field]: before[field] + 1 }
+  await $.store.set(KEY, total)
+  await update($, allTime, () =&gt; total)                                    // the mirror
+}
+
+on('classic.SessionStart', async ($, e, next) =&gt; {
+  if (e.source === 'clear' || e.source === 'resume' || e.source === 'fork') {
+    await update($, allTime, async () =&gt; ((await $.store.get(KEY)) as Tally | undefined) ?? ZERO)
+  }
+  return next(e)
+})</code></pre>
+    <p>One more catch: in 2.1.293 a fix landed for a mod's <code>classic.*</code> hooks being skipped while the hooks worker restarted. A mod that depends on <code>classic.SessionStart</code> for correctness could have shown this bug now and then before that release.</p>
+
+    <h2>Rules</h2>
+    <ol>
+      <li><strong>Anything a drawing reads goes in <code>$.state</code>.</strong> A module variable won't redraw anything, and a reload loses it.</li>
+      <li><strong>Anything that must outlive the session goes in <code>$.store</code>, and the store is the source of truth.</strong> Read it before every write.</li>
+      <li><strong>Reload mirrors in <code>classic.SessionStart</code></strong> for <code>clear</code>, <code>resume</code> and <code>fork</code>. Don't rely on <code>session.start</code> alone.</li>
+      <li><strong>The store is shared by every session on the machine.</strong> Two terminals running your mod race on one file. Use per-item keys, such as one key per session id, and re-read before you write.</li>
+      <li><strong>Timers are per load.</strong> Start them in <code>session.start</code>, which runs again after a reload, never at the module's top level.</li>
+      <li><strong>Save early.</strong> Every <code>session.end</code> hook together gets 1.5 seconds. Write to the store as things happen rather than at exit.</li>
+    </ol>

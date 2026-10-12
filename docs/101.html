@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mods 101 · Hook Chain</title>
+<meta name="description" content="The three files, register and on, the ($, e, next) hook, and the three moves: observe, rewrite, answer.">
+<meta property="og:title" content="Mods 101 · Hook Chain">
+<meta property="og:description" content="The three files, register and on, the ($, e, next) hook, and the three moves: observe, rewrite, answer.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://robgruhl.github.io/claude-mod-learnings/101.html">
+<meta property="og:image" content="https://robgruhl.github.io/claude-mod-learnings/assets/img/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+  try { var t = localStorage.getItem("hc-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+</head>
+<body class="inner">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Hook Chain</span></a>
+  <div class="topbar-actions">
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="sidenav">Menu</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="sidenav" class="sidenav" aria-label="Site">
+    <a class="nav-start" href="index.html">Start here</a>
+    <div class="nav-group"><p class="nav-head">Learn</p><ul><li><a href="eli5.html">Explain like I&#x27;m five</a></li><li><a href="101.html" aria-current="page">101 · What a mod is</a></li><li><a href="201.html">201 · Writing mods well</a></li><li><a href="301.html">301 · Engineering &amp; policy</a></li></ul></div><div class="nav-group"><p class="nav-head">Architecture</p><ul><li><a href="which.html">Mods vs skills vs MCP…</a></li><li><a href="chain.html">The hook chain</a></li><li><a href="lifetimes.html">What lasts how long</a></li><li><a href="cascade.html">Mods meet the cascade</a></li></ul></div><div class="nav-group"><p class="nav-head">Evidence</p><ul><li><a href="fieldtests.html">Field tests</a></li><li><a href="latency.html">Latency ladder</a></li><li><a href="landscape.html">Landscape · Oct 2026</a></li></ul></div><div class="nav-group"><p class="nav-head">Build</p><ul><li><a href="build.html">Build your own</a></li></ul></div>
+    <p class="nav-foot"><a href="https://github.com/RobGruhl/claude-mod-learnings">Source on GitHub</a></p>
+  </nav>
+  <main id="main" class="content">
+    <p class="eyebrow"><span class="badge l1">Level 1</span> What a mod is</p>
+    <h1>Mods 101</h1>
+    <p class="lede">A mod is a plugin whose code Claude Code runs inside its own process. The code registers functions called <strong>hooks</strong> on named <strong>events</strong>: a tool call, a submitted prompt, a part of the screen being drawn. Each hook joins a chain in front of Claude Code's own behaviour and decides what happens next.</p>
+
+    <h2>Three files</h2>
+    <p>A small mod is a folder with three files. Nothing needs installing or building, because Claude Code loads TypeScript directly.</p>
+<pre><code>tool-counter/
+├── .claude-plugin/
+│   └── plugin.json      the plugin's manifest: name, version, description
+└── hooks/
+    ├── hooks.json       { "modules": ["./register.ts"] }
+    └── register.ts      your code: the hooks module</code></pre>
+    <p>The <code>modules</code> key in <code>hooks.json</code> is what makes a plugin a mod. It names exactly one file. Without it the plugin still validates, but it has no mod code. The same plugin can also carry skills, agents, MCP servers and settings hooks.</p>
+
+    <h2>A complete mod</h2>
+    <p>This is the example from the official overview. It counts tool calls and adds the count to the spinner, so while Claude works you see <code>Thinking · tool calls: 3…</code>.</p>
+<pre><code>// The count, shared by the two hooks below
+let calls = 0
+
+// Claude Code calls this once when the mod loads
+export function register(on) {
+  // Runs each time Claude is about to use a tool
+  on('tool.call', async ($, e, next) =&gt; {
+    calls += 1
+    $.ui.invalidate('ui.render')   // ask for a redraw so the count shows
+    return next(e)                 // let the tool run as usual
+  })
+
+  // Runs each time Claude Code draws the spinner
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) =&gt; {
+    // Keep Claude Code's spinner, with the count added after its word
+    return next({ ...e, props: { ...e.props, suffix: ' · tool calls: ' + calls + '…' } })
+  })
+}</code></pre>
+    <p>Load it for one session without installing anything:</p>
+<pre><code>claude --plugin-dir ./tool-counter</code></pre>
+    <p>Run <code>/plugin</code> and a dim line under the tabs says <code>1 mod active · tool-counter</code>. The folder is watched, so saving <code>register.ts</code> reloads the mod in place.</p>
+
+    <h2>The four names</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Name</th><th>What it is</th></tr>
+      <tr><td><code>register(on, options)</code></td><td>The function your module exports. Claude Code calls it once per load. <code>options</code> holds the values of the fields your manifest's <code>userConfig</code> declares.</td></tr>
+      <tr><td><code>on(event, matcher?, hook)</code></td><td>Adds a hook to an event's chain. The optional matcher narrows it, for example <code>{ tool: 'Bash' }</code> or <code>{ component: 'Spinner' }</code>.</td></tr>
+      <tr><td><code>$</code></td><td>The mods API: drawing, commands, tools, model calls, files, processes, network, store, clock, settings and more. It is the module's only way to reach anything outside itself.</td></tr>
+      <tr><td><code>e</code> and <code>next</code></td><td><code>e</code> is the event as a plain value. For a Bash tool call, <code>e.command</code> is the command. <code>next(e)</code> passes the event on to the rest of the chain and resolves to its result.</td></tr>
+    </table></div>
+
+    <h2>The three moves</h2>
+    <p>Claude Code runs your hook <em>before</em> it acts on the event, so the hook decides what happens. It has three choices:</p>
+    <div class="diagram">
+      <svg viewBox="0 0 760 250" role="img" aria-label="Three hooks side by side. Observe: the event passes through unchanged to the engine. Rewrite: the event passes through with a change. Answer: the hook returns its own result and the engine never sees the event.">
+        <defs><marker id="m101" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+        <text x="125" y="26" text-anchor="middle" font-weight="700" font-size="16">Observe</text>
+        <text x="380" y="26" text-anchor="middle" font-weight="700" font-size="16">Rewrite</text>
+        <text x="635" y="26" text-anchor="middle" font-weight="700" font-size="16">Answer</text>
+        <rect x="45" y="44" width="160" height="40" rx="10" class="box"/><text x="125" y="69" text-anchor="middle" font-size="14">e: rm -rf build</text>
+        <rect x="300" y="44" width="160" height="40" rx="10" class="box"/><text x="380" y="69" text-anchor="middle" font-size="14">e: ls -la  </text>
+        <rect x="555" y="44" width="160" height="40" rx="10" class="box"/><text x="635" y="69" text-anchor="middle" font-size="14">e: git push -f</text>
+        <rect x="45" y="104" width="160" height="40" rx="10" class="box-teal"/><text x="125" y="129" text-anchor="middle" font-size="14">your hook: count it</text>
+        <rect x="300" y="104" width="160" height="40" rx="10" class="box-amber"/><text x="380" y="129" text-anchor="middle" font-size="14">your hook: trim it</text>
+        <rect x="555" y="104" width="160" height="40" rx="10" class="box-coral"/><text x="635" y="129" text-anchor="middle" font-size="14">your hook: { deny }</text>
+        <rect x="45" y="184" width="160" height="40" rx="10" class="box-navy"/><text x="125" y="209" text-anchor="middle" font-size="14">engine runs it</text>
+        <rect x="300" y="184" width="160" height="40" rx="10" class="box-navy"/><text x="380" y="209" text-anchor="middle" font-size="14">engine runs "ls -la"</text>
+        <rect x="555" y="184" width="160" height="40" rx="10" class="box" stroke-dasharray="5 4"/><text x="635" y="209" text-anchor="middle" font-size="14" class="muted">engine never sees it</text>
+        <line x1="125" y1="84" x2="125" y2="102" class="arrow" marker-end="url(#m101)"/><line x1="125" y1="144" x2="125" y2="182" class="arrow" marker-end="url(#m101)"/>
+        <line x1="380" y1="84" x2="380" y2="102" class="arrow" marker-end="url(#m101)"/><line x1="380" y1="144" x2="380" y2="182" class="arrow" marker-end="url(#m101)"/>
+        <line x1="635" y1="84" x2="635" y2="102" class="arrow" marker-end="url(#m101)"/>
+        <text x="140" y="168" font-size="12" class="muted">next(e)</text><text x="395" y="168" font-size="12" class="muted">next({ ...e, command })</text><text x="650" y="168" font-size="12" class="muted">no next</text>
+      </svg>
+    </div>
+<pre><code>// Observe: note it, change nothing
+on('tool.call', ($, e, next) =&gt; { log(e); return next(e) })
+
+// Rewrite: the rest of the chain sees the new event
+on('tool.call', { tool: 'Bash' }, ($, e, next) =&gt; next({ ...e, command: e.command.trim() }))
+
+// Answer: return a result without calling next, so nothing beneath runs
+on('tool.call', { tool: 'Bash' }, ($, e, next) =&gt;
+  /\bgit\s+push\b.*--force/.test(e.command) ? { deny: 'Ask the person to force-push themselves.' } : next(e))</code></pre>
+    <p>A hook can also <code>await next(e)</code> and then change the result on its way back up, or call <code>next</code> twice to retry. Because each hook wraps the ones after it, the chain works like middleware in a web server.</p>
+
+    <h2>What a mod can hook</h2>
+    <p>The 2.1.296 declarations list 46 engine events, plus every settings-hook event as <code>classic.&lt;Event&gt;</code>. They fall into a few families:</p>
+    <div class="table-wrap"><table>
+      <tr><th>Family</th><th>Examples</th><th>Typical use</th></tr>
+      <tr><td>Tools</td><td><code>tool.call</code>, <code>tool.check</code>, <code>tool.describe</code></td><td>Guard, rewrite, answer or post-process a tool call. Approve or deny at the permission check. Rewrite a tool's description.</td></tr>
+      <tr><td>Prompt</td><td><code>prompt.submit</code>, <code>prompt.compose</code>, <code>prompt.mention</code>, <code>prompt.autocomplete</code></td><td>Rewrite or drop a prompt, add hidden context, add a system-prompt section, guard an <code>@</code>-mentioned file.</td></tr>
+      <tr><td>Turn</td><td><code>turn.start</code>, <code>turn.step</code>, <code>turn.complete</code></td><td>Follow a turn. Stream or reroute a model request. Print a receipt under the answer.</td></tr>
+      <tr><td>Session</td><td><code>session.start</code>, <code>session.end</code>, <code>session.append</code>, <code>session.compact</code></td><td>Register commands at start, redact rows as they are stored, shape compaction, save on exit.</td></tr>
+      <tr><td>Interface</td><td><code>ui.render</code>, <code>ui.press</code>, <code>ui.input</code></td><td>Draw a pane or a band, restyle the spinner or a tool row, handle buttons and fields.</td></tr>
+      <tr><td>Agents and commands</td><td><code>agent.spawn</code>, <code>agent.offer</code>, <code>command.run</code></td><td>Pin a subagent's model, hide an agent type, answer your own slash command with no Claude turn.</td></tr>
+      <tr><td>Plugins</td><td><code>plugin.register</code>, <code>engine.create</code></td><td>Admit or refuse another mod as it loads. Add a namespace to <code>$</code> for other mods.</td></tr>
+    </table></div>
+    <p>Every <code>$</code> call is an event too (<code>fs.read</code>, <code>model.complete</code>, <code>http.fetch</code>). A mod that runs earlier in the chain can watch, change or refuse what a later mod asks for.</p>
+
+    <h2>Where mods run</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Where you run Claude Code</th><th>Hooks run</th><th>Drawings appear</th></tr>
+      <tr><td><code>claude</code> in a terminal, including IDE terminals and JetBrains</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>The Code tab of the Desktop app (not WSL sessions)</td><td>Yes</td><td>Yes, except terminal-only elements</td></tr>
+      <tr><td>VS Code extension chat panel</td><td>Yes</td><td>No</td></tr>
+      <tr><td><code>claude -p</code> and the Agent SDK</td><td>Yes</td><td>No</td></tr>
+      <tr><td>Remote Control from the web or phone</td><td>Yes, on your machine</td><td>Only in your local terminal</td></tr>
+      <tr><td>Cloud sessions</td><td>If the plugin reaches them</td><td>No</td></tr>
+    </table></div>
+    <p>A guard keeps working in headless runs. A pane doesn't appear there, so a mod that draws should check <code>e.surface</code> and fall back to a transcript line or a command reply.</p>
+
+    <h2>Trust: what a mod can reach</h2>
+    <div class="callout warn">
+      <p><strong>Mods aren't sandboxed.</strong> A mod acts on your machine as you. It can read and write files, start programs, make network requests, read environment variables and settings, see every prompt and tool call, rewrite them, approve a tool call before you're asked and spend your model usage. A process a mod starts runs outside the Bash sandbox. The one thing it can't touch is the permission prompt.</p>
+    </div>
+    <p>The module itself has no ambient authority: no Node, no DOM, no file or network globals. (The docs also say no timers, but our <a href="fieldtests.html">field tests</a> found <code>setTimeout</code> present on 2.1.296.) Everything that reaches outside goes through <code>$</code>, so the loader can read a mod's source and list what it does. Before you install one, run:</p>
+<pre><code>claude plugin validate ./some-mod</code></pre>
+    <p>The <code>hooks:</code> line lists the events the mod handles. The <code>calls:</code> line lists what it asks Claude Code to do, such as <code>fs.read</code>, <code>process.run</code> or <code>http.fetch</code>. A mod that counts tool calls and also calls <code>http.fetch</code> deserves a closer look.</p>
+
+    <h2>Turning mods off</h2>
+    <ul>
+      <li><strong>One mod:</strong> disable or uninstall its plugin in <code>/plugin</code>.</li>
+      <li><strong>Every installed mod, for one session:</strong> <code>claude --safe-mode</code>.</li>
+      <li><strong>Every mod you installed, always:</strong> <code>"disableAllHooks": true</code> in <code>~/.claude/settings.json</code>. This also stops your settings hooks and custom status line. What your organization manages keeps running.</li>
+      <li><strong>Not a switch:</strong> <code>CLAUDE_CODE_ENABLE_FUNCTION_HOOKS</code> was the early-access flag. 2.1.287 and later ignore it, so setting it to <code>0</code> does not turn mods off.</li>
+    </ul>
+    <p>Built-in mods such as <code>/diff</code>'s pane keep running under all of these. They are listed separately in <code>/plugin</code>.</p>
+
+    <h2>What to remember</h2>
+    <ol>
+      <li>Three files: <code>plugin.json</code>, <code>hooks.json</code> with <code>modules</code>, and one hooks module.</li>
+      <li>Every hook is <code>($, e, next)</code>. It can observe, rewrite or answer.</li>
+      <li>Everything outside the module goes through <code>$</code>, so <code>claude plugin validate</code> can list it.</li>
+      <li>Hooks run everywhere the plugin loads. Drawings show only in the terminal and the Desktop app.</li>
+      <li>A mod has your permissions. Read its <code>calls:</code> before you install it.</li>
+    </ol>
+    <div class="callout note"><p><strong>Next:</strong> <a href="201.html">Mods 201</a> covers writing them well: chain etiquette, guards that fail closed, state, drawing, commands and tests. Or try the <a href="build.html">facilitated tutorial</a> and build one step by step.</p></div>
+
+<nav class="pager" aria-label="Page navigation"><a class="pager-prev" href="eli5.html"><span>Previous</span>Explain like I&#x27;m five</a><a class="pager-next" href="201.html"><span>Next</span>Mods 201</a></nav>
+    <footer class="footer">
+      <p>An independent study of Claude Code mods, not an Anthropic project. Mods shipped on 1 October 2026 in Claude Code 2.1.287; everything here was checked against 2.1.296 on October 12, 2026. The API is early access, so trust the types your own build writes over anything on this site.</p>
+      <p>Sister site: <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, a field guide to decision models. Text © Rob Gruhl, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>; code samples MIT. Illustrations made with gpt-image-2. Built with Claude Code.</p>
+    </footer>
+  </main>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

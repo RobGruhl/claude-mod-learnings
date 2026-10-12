@@ -1,0 +1,1 @@
+{ "name": "e4-dynamic-import", "version": "0.1.0", "description": "Uses import()", "author": { "name": "Rob Gruhl" } }

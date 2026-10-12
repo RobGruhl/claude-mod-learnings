@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landscape, October 2026 · Hook Chain</title>
+<meta name="description" content="Releases 2.1.287 to 2.1.296, the built-in mods, community catalogs and what changed for mod authors.">
+<meta property="og:title" content="Landscape, October 2026 · Hook Chain">
+<meta property="og:description" content="Releases 2.1.287 to 2.1.296, the built-in mods, community catalogs and what changed for mod authors.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://robgruhl.github.io/claude-mod-learnings/landscape.html">
+<meta property="og:image" content="https://robgruhl.github.io/claude-mod-learnings/assets/img/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+  try { var t = localStorage.getItem("hc-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+</head>
+<body class="inner">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Hook Chain</span></a>
+  <div class="topbar-actions">
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="sidenav">Menu</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="sidenav" class="sidenav" aria-label="Site">
+    <a class="nav-start" href="index.html">Start here</a>
+    <div class="nav-group"><p class="nav-head">Learn</p><ul><li><a href="eli5.html">Explain like I&#x27;m five</a></li><li><a href="101.html">101 · What a mod is</a></li><li><a href="201.html">201 · Writing mods well</a></li><li><a href="301.html">301 · Engineering &amp; policy</a></li></ul></div><div class="nav-group"><p class="nav-head">Architecture</p><ul><li><a href="which.html">Mods vs skills vs MCP…</a></li><li><a href="chain.html">The hook chain</a></li><li><a href="lifetimes.html">What lasts how long</a></li><li><a href="cascade.html">Mods meet the cascade</a></li></ul></div><div class="nav-group"><p class="nav-head">Evidence</p><ul><li><a href="fieldtests.html">Field tests</a></li><li><a href="latency.html">Latency ladder</a></li><li><a href="landscape.html" aria-current="page">Landscape · Oct 2026</a></li></ul></div><div class="nav-group"><p class="nav-head">Build</p><ul><li><a href="build.html">Build your own</a></li></ul></div>
+    <p class="nav-foot"><a href="https://github.com/RobGruhl/claude-mod-learnings">Source on GitHub</a></p>
+  </nav>
+  <main id="main" class="content">
+    <p class="eyebrow"><span class="badge data">Evidence</span> Checked October 12, 2026</p>
+    <h1>Landscape, October 2026</h1>
+    <p class="lede">Mods shipped on October 1 in Claude Code 2.1.287. In the eleven days since, nine more releases have come out and most of them changed something a mod author touches. Community scanners now index about 3,500 public mods. This page covers what changed, which fixes matter if you write a guard, and how far to trust a catalog.</p>
+    <div class="callout warn"><p><strong>Provenance.</strong> Release lines are quoted from <a href="https://github.com/anthropics/claude-code/releases">the GitHub release notes</a> and were checked with <code>gh release view</code> on October 12. The event count comes from the type declarations bundled with 2.1.296. Catalog numbers come from each catalog's own README on October 12, and claims a catalog makes about its own testing are marked as self-reported. Our own experiments are on <a href="fieldtests.html">Field tests</a>.</p></div>
+
+    <h2 id="releases">Releases 2.1.287 to 2.1.296</h2>
+    <p>2.1.296 (October 9) is the newest release as of October 12. Only lines that touch mods are listed. Every row was checked against the release notes on 10/12.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Version</th><th>Date</th><th>What changed for mod authors</th></tr></thead>
+      <tbody>
+        <tr><td><strong>2.1.287</strong></td><td>Oct 1</td><td>"Added Claude Mods: plugins may now modify deeper behavior." 43 engine events.</td></tr>
+        <tr><td>2.1.288</td><td>Oct 2</td><td><code>$.ui.selection()</code>: the text last selected in fullscreen mode. Fixed a mod's <code>tool.call</code> hook breaking Bash and file search in subagents running in a worktree.</td></tr>
+        <tr><td>2.1.289</td><td>Oct 3</td><td><code>agent.spawn</code> fires for teammates. One agent id across hook events. Idle and waiting states in <code>$.agent.list()</code>. <strong>Fixed installed mods not loading in the first session after an upgrade.</strong> A deny or ask rule on part of a compound shell command now holds over a user mod's approval on managed machines.</td></tr>
+        <tr><td>2.1.290</td><td>Oct 5</td><td><code>tool.check</code> gains <code>agentId</code> and <code>ceiling</code>. <code>turn.step</code> gains <code>serverToolUses</code>. <code>ThemeKey</code> and <code>Color</code> types. <code>claude plugin validate</code> lists every hook at a gating site and whether it has a <code>.catch</code>.</td></tr>
+        <tr><td>2.1.291</td><td>Oct 6</td><td>Nothing mod-specific (two regression fixes).</td></tr>
+        <tr><td>2.1.292</td><td>Oct 6</td><td>New event <code>prompt.autocomplete</code>. Prompt caching for <code>$.model.complete</code> (<code>cache: true</code> on a block). <code>agent.spawn</code> covers workflow agents. <code>claude plugin install --marketplace &lt;source&gt;</code> adds and installs in one step.</td></tr>
+        <tr><td>2.1.293</td><td>Oct 7</td><td><code>$.tool.register</code> takes <code>isDeferred: false</code> to list a schema up front. <code>mock.session</code> in the test kit. Fixed a mod's <code>classic.*</code> hooks being skipped while the hooks worker restarted.</td></tr>
+        <tr><td>2.1.294</td><td>Oct 8</td><td>Settings-hook fixes only. Instruction-style <code>prompt</code> and <code>agent</code> hooks had been allowing what they should block.</td></tr>
+        <tr><td>2.1.295</td><td>Oct 8</td><td><code>$.ui.notify</code> (native notification through the user's own channel). <code>Button</code> takes children. <strong>Fixed a hook being handed a deeply nested tool input cut short, with no error.</strong> New events <code>prompt.mention</code> and <code>ui.fault</code> in the declarations, 46 in all.</td></tr>
+        <tr><td><strong>2.1.296</strong></td><td>Oct 9</td><td><strong>Fixed Esc during a <code>prompt.submit</code> hook letting the unchecked prompt through.</strong> Served <code>$</code> methods now run in the calling agent's working directory. <code>$.agent.register</code> is refused from a hook still running after its mod was reloaded or removed. <code>$.http.fetch</code> accepts <code>HEAD</code> on large responses. <code>/plugin</code> notes a plugin whose hooks were dropped because another enabled plugin has the same name. <code>--debug</code> now logs each command hook's plugin, outcome and duration.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Event count: still 46 in 2.1.296.</strong> We counted the keys of <code>EngineEventOf</code> in the 2.1.296 bundled <code>claude-code.d.ts</code> (21,473 lines), the same way we got 43 for 2.1.287 and 46 for 2.1.295. The set is identical to 2.1.295's. The other 2.1.296 type changes are small. A registered tool's description now reaches the model up to 4,096 characters, where it was 2,048. Registered agents take an <code>autoCompactWindow</code>. <code>$.mcp.connect</code> now says plainly that listing a server defers nothing, so to hold its tools back you refuse their calls at <code>tool.check</code>. <span style="color:var(--ink-faint)">(checked 10/12)</span></p>
+
+    <h2 id="guards">Fixes that matter if you write a guard</h2>
+    <p>A guard is a mod that stops things: a <code>tool.call</code> hook that denies a command, a <code>prompt.submit</code> hook that drops a prompt. Each of these fixes closed a way past one.</p>
+    <ul>
+      <li><strong>2.1.295: truncated nested input.</strong> A hook could be handed a deeply nested tool input that had been cut short, with no error, so a guard could pass content it never saw. If you tested a guard before 2.1.295 on large or deeply nested inputs, such as an MCP tool with a big JSON argument or a long multi-edit, test it again.</li>
+      <li><strong>2.1.296: Esc during <code>prompt.submit</code>.</strong> Pressing Esc or interrupting while a mod's <code>prompt.submit</code> hook ran could let the unchecked prompt through, end a headless session, or clear the typed prompt. The same fix covers settings <code>UserPromptSubmit</code> hooks.</li>
+      <li><strong>2.1.295: <code>prompt.mention</code>.</strong> This one is a new event rather than a fix. A file named after <code>@</code> in a prompt is read without raising <code>tool.call</code>, so a secrets guard that hooks only <code>tool.call</code> never sees it. Hook both, and give the <code>prompt.mention</code> hook a <code>.catch</code>, because a guard there that fails is skipped and the file is read.</li>
+      <li><strong>2.1.290: <code>.catch</code> made visible.</strong> <code>claude plugin validate</code> now prints <code>gating hook without .catch</code> for each guard-shaped hook that would fail open. The reference calls this "a fact, never a warning." For a real guard, add <code>.catch(($, e, next) =&gt; next.called ? next(e) : { deny: 'why' })</code>. Also in 2.1.290: a hook with a <code>.catch</code> could be unloaded and its <code>.catch</code> skipped when it kept the hooks worker busy. That's fixed.</li>
+      <li><strong>2.1.289: compound commands on managed machines.</strong> A deny or ask rule on one part of <code>a &amp;&amp; b</code> now holds over a user mod's approval.</li>
+      <li><strong>2.1.293: <code>classic.*</code> hooks during a worker restart.</strong> They were skipped. A mod that reloads its state in <code>classic.SessionStart</code> after <code>/clear</code> could miss the reload while this bug was live.</li>
+    </ul>
+    <div class="callout"><p class="kicker">The pattern</p><p>Most guard bugs on this list weren't logic errors in the guard. The guard was never asked: the input was cut short, the file came in through another event, the hook was skipped during a restart, or the prompt got past during an interrupt. Write the guard to fail closed, hook every event the protected thing can arrive by, and re-run your tests after each Claude Code release. See <a href="cascade.html">Mods meet the cascade</a> for a guard laid out that way.</p></div>
+
+    <h2 id="builtins">The built-in mods</h2>
+    <p>From the official overview, checked 10/12. <code>/plugin</code> lists them under <strong>Built-in</strong>. <code>disableAllHooks</code>, <code>--bare</code> and <code>--safe-mode</code> don't stop them.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Name in <code>/plugin</code></th><th>What it does</th><th>Source public?</th></tr></thead>
+      <tbody>
+        <tr><td><code>cc-plugin-agents-md</code></td><td>Loads <code>AGENTS.md</code> as project instructions</td><td>Yes</td></tr>
+        <tr><td><code>cc-plugin-diff</code></td><td>Takes over <code>/diff</code> and draws its pane</td><td>Yes</td></tr>
+        <tr><td><code>cc-plugin-plugin-authoring</code></td><td>The skill Claude uses to write mods (a skill only, no mod code)</td><td>No</td></tr>
+        <tr><td><code>cc-plugin-sec-default</code></td><td>Guards what an organization manages from the mods a user installs</td><td>Yes</td></tr>
+        <tr><td><code>cc-plugin-telemetry</code></td><td>Sends Claude Code's analytics records; adds <code>$</code> methods other mods can call</td><td>Yes</td></tr>
+        <tr><td><code>cc-plugin-you-should-know</code></td><td>A side agent that leaves notes above the prompt on long tasks. Off by default</td><td>No</td></tr>
+      </tbody>
+    </table></div>
+    <h3><code>sec-default</code> grew on October 11</h3>
+    <p>The public source in <a href="https://github.com/anthropics/claude-code/tree/main/mods"><code>anthropics/claude-code/mods</code></a> has had three commits since October 2. One, on October 7, fixed how the <code>diff</code> pane docks. The other two are bulk updates, on October 8 and October 11. The October 11 update changed only <code>sec-default</code>, and its README went from 188 to 270 lines. Compared row by row, the guard now also holds these events out of a user mod's reach (checked 10/12):</p>
+    <ul>
+      <li><code>env.get</code> and <code>env.set</code>, with a new idea of <strong>pinned variables</strong>. A variable that managed settings set in <code>env</code>, plus nine that move where policy and sign-in are read from (<code>CLAUDE_CONFIG_DIR</code>, <code>CLAUDE_CODE_MANAGED_SETTINGS_PATH</code> and others), can't be set or unset by a user mod.</li>
+      <li><code>prompt.attachment</code>, <code>session.append</code> for rows the engine injects, and <code>ui.log</code> lines from an organization's own mods.</li>
+      <li><code>session.compact</code>, entirely. <strong>A user mod's compaction hook doesn't run where the guard is seated.</strong> The guard is seated on any machine with managed settings, and for anyone signed in on a Team or Enterprise plan.</li>
+    </ul>
+    <p>Its README is still the best worked example of a policy mod. It uses three moves and nothing else: continue past the user tier with <code>next.to(e, 'append')</code>, refuse by name, or pass. Its policy reads fail closed.</p>
+
+    <h2 id="samples">Anthropic's sample mods</h2>
+    <p>The <a href="https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods"><code>claude-code/mods</code></a> folder of <code>anthropics/claude-code-playground</code> still holds the same three samples it launched with on October 1, and nothing in it has changed since (checked 10/12):</p>
+    <ul>
+      <li><strong>token-weather</strong> draws a forecast of your context window above the prompt.</li>
+      <li><strong>blast-radius</strong> holds a risky shell command and shows what it would change, with buttons to proceed or cancel.</li>
+      <li><strong>replay-theater</strong> adds <code>/replay</code>, which steps through the last turn's file edits.</li>
+    </ul>
+
+    <h2 id="catalogs">Community catalogs</h2>
+    <p>Counts are from each catalog's README on October 12. Treat "tested" and "reviewed" as the catalog's own description of itself.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Catalog</th><th class="num">Stars</th><th>Size</th><th>What it does</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://github.com/karanb192/awesome-claude-code-mods"><strong>karanb192/awesome-claude-code-mods</strong></a></td><td class="num">516</td><td><strong>3,561 mods</strong>, last scanned 10/12</td><td>Scans public GitHub repos and records what the validator reports each mod can read, write, run or send over the network. Browse at <a href="https://mods.aidojo.si/">mods.aidojo.si</a>. Ships a <code>mod-finder</code> plugin.</td><td>CC0. Independent, not an Anthropic directory. Was 2,692 on 10/6 and 376 stars on 10/8.</td></tr>
+        <tr><td><a href="https://github.com/Singh-AP/awesome-claude-mods"><strong>Singh-AP/awesome-claude-mods</strong></a></td><td class="num">2</td><td>20 built there, 96 listed, 44 one-command installs; daily index of <strong>3,454 mods across 1,967 repos</strong></td><td>A marketplace of its own mods plus community mods "reviewed and pinned to a commit." A scheduled Claude Code run fixes breakage, curates and builds one new mod a day.</td><td>MIT. Testing is self-reported. The index was 2,902 across 1,597 repos on 10/8.</td></tr>
+        <tr><td><a href="https://github.com/whyashthakker/awesome-claude-code-mods"><strong>whyashthakker/awesome-claude-code-mods</strong></a></td><td class="num">51</td><td>70 bundled mods (50 general, 20 for the Desktop Code tab)</td><td>Each with source, tests, an access description and a screenshot.</td><td>States MIT for the bundled mods. "Tested with 2.1.288" and no push since 10/3.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The <a href="https://claude.ai/directory">Claude directory</a> also takes plugins that contain mods, with submissions at <a href="https://claude.ai/directory/manage">claude.ai/directory/manage</a>, according to the launch post and the getting-started post. We didn't open the portal itself, so the review tracking and usage stats it reportedly offers are <strong>unverified</strong>.</p>
+    <div class="callout warn">
+      <p class="kicker">Before you install a mod from any catalog</p>
+      <p>A mod runs with your permissions and isn't sandboxed. It can read your files and secrets, approve tool calls and spend your usage. Clone it and run <code>claude plugin validate ./the-mod</code>. Read the <code>hooks:</code> and <code>calls:</code> lines, because static analysis lists every <code>$</code> call the module can make, and Claude Code refuses to load a module whose calls it can't read. A catalog's access badge is that same validator output at scan time, so it can go stale once the author pushes.</p>
+      <p>Guard mods such as <code>bash-guard</code>, <code>secret-shield</code> or <code>guardrails</code> fail open unless they register <code>.catch</code>. They lower risk in permission-skipping modes. They don't remove it. <code>validate</code> on 2.1.290+ tells you which hooks lack a <code>.catch</code>.</p>
+    </div>
+
+    <h2 id="watch">What to watch</h2>
+    <ul>
+      <li><strong>The release cadence.</strong> Ten releases between October 1 and October 9, most of them touching mods. Pin the Claude Code version you test against, and re-run <code>claude plugin test</code> on every upgrade. The 2.1.289 bug that kept installed mods from loading in the first session after an upgrade is a reminder that "it did nothing" can be the engine's fault.</li>
+      <li><strong>Drawing beyond the terminal.</strong> The declarations still type <code>mobile</code> and <code>vscode</code> render surfaces that the docs don't list as drawing. In 2.1.296, mods draw only in the terminal and the Desktop Code tab.</li>
+      <li><strong><code>sec-default</code>'s reach.</strong> It took five more events on October 11. If your mod rewrites compaction, environment variables or injected rows, test it on a managed machine or a Team plan, where the guard is seated.</li>
+      <li><strong>Catalog consolidation.</strong> Two scanners, karanb192 and Singh-AP, now index roughly the same 3,500 public mods every day. Neither is official, and both rely on the validator's static analysis, which shows what a mod <em>can</em> call, not what it <em>does</em>.</li>
+      <li><strong>Unused API.</strong> On 10/8 no official sample used <code>$.model</code>, <code>$.agent</code>, <code>$.audio</code> or <code>$.tool</code>. Those are the parts of the API with the fewest worked examples, and probably where the next surprises are.</li>
+    </ul>
+
+<nav class="pager" aria-label="Page navigation"><a class="pager-prev" href="latency.html"><span>Previous</span>The latency ladder</a><a class="pager-next" href="build.html"><span>Next</span>Build your own mod skeleton</a></nav>
+    <footer class="footer">
+      <p>An independent study of Claude Code mods, not an Anthropic project. Mods shipped on 1 October 2026 in Claude Code 2.1.287; everything here was checked against 2.1.296 on October 12, 2026. The API is early access, so trust the types your own build writes over anything on this site.</p>
+      <p>Sister site: <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, a field guide to decision models. Text © Rob Gruhl, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>; code samples MIT. Illustrations made with gpt-image-2. Built with Claude Code.</p>
+    </footer>
+  </main>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

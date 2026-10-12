@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field tests · Hook Chain</title>
+<meta name="description" content="Claims about mods checked by experiment on Claude Code 2.1.296: fail-open, .catch, order, rewrites and more.">
+<meta property="og:title" content="Field tests · Hook Chain">
+<meta property="og:description" content="Claims about mods checked by experiment on Claude Code 2.1.296: fail-open, .catch, order, rewrites and more.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://robgruhl.github.io/claude-mod-learnings/fieldtests.html">
+<meta property="og:image" content="https://robgruhl.github.io/claude-mod-learnings/assets/img/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+  try { var t = localStorage.getItem("hc-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+</head>
+<body class="inner">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Hook Chain</span></a>
+  <div class="topbar-actions">
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="sidenav">Menu</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="sidenav" class="sidenav" aria-label="Site">
+    <a class="nav-start" href="index.html">Start here</a>
+    <div class="nav-group"><p class="nav-head">Learn</p><ul><li><a href="eli5.html">Explain like I&#x27;m five</a></li><li><a href="101.html">101 · What a mod is</a></li><li><a href="201.html">201 · Writing mods well</a></li><li><a href="301.html">301 · Engineering &amp; policy</a></li></ul></div><div class="nav-group"><p class="nav-head">Architecture</p><ul><li><a href="which.html">Mods vs skills vs MCP…</a></li><li><a href="chain.html">The hook chain</a></li><li><a href="lifetimes.html">What lasts how long</a></li><li><a href="cascade.html">Mods meet the cascade</a></li></ul></div><div class="nav-group"><p class="nav-head">Evidence</p><ul><li><a href="fieldtests.html" aria-current="page">Field tests</a></li><li><a href="latency.html">Latency ladder</a></li><li><a href="landscape.html">Landscape · Oct 2026</a></li></ul></div><div class="nav-group"><p class="nav-head">Build</p><ul><li><a href="build.html">Build your own</a></li></ul></div>
+    <p class="nav-foot"><a href="https://github.com/RobGruhl/claude-mod-learnings">Source on GitHub</a></p>
+  </nav>
+  <main id="main" class="content">
+    <p class="eyebrow"><span class="badge data">Evidence</span> Claude Code 2.1.296 · October 12, 2026</p>
+    <h1>Field tests</h1>
+    <p class="lede">The docs make a lot of specific claims about how mods behave when things go wrong. We wrote a small mod for each claim and ran it. Most claims held. Two didn't, and one of our own mistakes taught us more than the experiment it was part of.</p>
+
+    <figure>
+      <img src="assets/img/bench.jpg" alt="A tidy laboratory workbench: a small circuit board shaped like a puzzle piece under a magnifying lamp, a rack of test tubes topped with check-mark and cross flags, a stopwatch, a notebook of results tables, and a friendly robot in safety goggles writing on a clipboard." width="1536" height="1024">
+    </figure>
+
+    <h2>Summary</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Claim</th><th>Verdict</th><th>What we saw</th></tr></thead>
+      <tbody>
+        <tr><td>A guard that throws is skipped and the call goes on, unless it has a <code>.catch</code></td><td class="best">Confirmed</td><td><code>rm -rf build</code> reached core through a throwing guard; with <code>.catch</code> the call was refused</td></tr>
+        <tr><td>A guard that runs past its 10 s budget is skipped</td><td class="best">Confirmed live</td><td><code>tool.call hook skipped: ran past its 10s budget</code>, and the Read ran at 10.02 s</td></tr>
+        <tr><td>Prepend, then user mods, then core; within a module, <code>on</code> order</td><td class="best">Confirmed</td><td><code>ls &gt;prepend &gt;first &gt;second &gt;other-user</code>, results unwound in reverse</td></tr>
+        <tr><td>Observe, rewrite, answer, post-process, retry</td><td class="best">Confirmed</td><td>Core never saw the rewritten or answered commands, and saw the retried one twice</td></tr>
+        <tr><td>A module whose use of <code>$</code> can't be read is refused</td><td class="best">Confirmed</td><td>Validate exits 1 and the engine won't load it: <code>$ itself is bound to a name</code></td></tr>
+        <tr><td>Failing after <code>next</code> keeps the result; nothing runs twice</td><td class="best">Confirmed</td><td>Core ran the command once, and its result came back</td></tr>
+        <tr><td>A <code>tool.call</code> guard doesn't see <code>@</code>-mentioned files</td><td class="best">Confirmed (kit)</td><td>The Read was refused, while the <code>@.env</code> mention went to its own event</td></tr>
+        <tr><td>No timer globals such as <code>setTimeout</code></td><td>Contradicted</td><td><code>setTimeout</code> exists and fires, in the kit and in the live hooks worker</td></tr>
+        <tr><td>Register each event once per matcher</td><td>Partly contradicted</td><td>Only duplicates <em>without</em> a matcher are refused; 20 identical matchers loaded and all ran</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2>How we tested</h2>
+    <p>Most experiments use the test kit, <code>claude plugin test</code>. It runs the real engine with no session, model or terminal, and the hooks a test registers sit beneath the mod as a stand-in for Claude Code's own behaviour. That makes it good for testing the chain, and unable to show what a live session does around it. For the two claims the kit can't reach, we used a live headless session: a mod whose <code>prompt.submit</code> hook drops the prompt, so <code>claude -p</code> runs the hooks and exits without calling a model.</p>
+    <p>Every mod, test and output is in <a href="https://github.com/RobGruhl/claude-mod-learnings/tree/main/experiments">experiments/ on GitHub</a>, with the full write-up in <code>RESULTS.md</code>. The outputs below are trimmed but not edited.</p>
+
+    <h2>1. A broken guard fails open</h2>
+    <p>This is the claim that matters most for anyone writing a guard. The docs say a hook that throws, times out or returns the wrong shape before calling <code>next</code> is skipped, and the next handler runs in its place. For a guard, that means the thing it was guarding happens.</p>
+    <pre><code>on('tool.call', { tool: 'Bash' }, async ($, e, next) =&gt; {
+  if (e.command.includes('rm')) throw new Error('guard bug')
+  return next(e)
+})
+
+on('tool.call', { tool: 'Write' }, async ($, e, next) =&gt; {
+  throw new Error('guard bug')
+}).catch(($, e, next) =&gt; (next.called ? next(e) : { deny: `guard failed (${next.error.kind}), so the call was refused` }))</code></pre>
+    <pre><code>E1 bash result: {"result":"core ran it"}
+E1 write result: {"deny":"guard failed (throw), so the call was refused"}
+E1 reached core: ["Bash rm -rf build","Read"]</code></pre>
+    <p>The <code>rm -rf build</code> went straight through. <code>claude plugin validate</code> tells you about this before anything runs. It lists every hook at a site that can refuse something, and says whether it has a handler:</p>
+    <pre><code>❯ ./register.ts gating hook without .catch: tool.call{tool=Bash}
+❯ ./register.ts gating hook with .catch: tool.call{tool=Write}</code></pre>
+    <div class="callout warn"><p><strong>Rule:</strong> every hook that refuses things gets <code>.catch(($, e, next) =&gt; next.called ? next(e) : { deny: '…' })</code>. Then grep validate's output for <code>without .catch</code> in CI.</p></div>
+
+    <h2>2. A slow guard is a missing guard</h2>
+    <p>The kit couldn't test the time budget, because its own per-test limit (5 s) is shorter than a hook's (10 s). The test died first with <code>timed out after 5000 ms</code>. So we tested it live. <code>live-probe</code> registers a Read guard that waits 11 seconds and then denies. Its <code>prompt.submit</code> hook makes a Read through <code>$.tool.call</code>, which runs every hook except the calling one.</p>
+    <pre><code>$ HC_PROBE_OUT=/tmp/out.json claude -p x --plugin-dir experiments/live-probe
+live-probe: tool.call hook skipped: ran past its 10s budget
+Prompt dropped by a hook: live-probe: measurements written; no model call</code></pre>
+    <p>In three runs, the Read came back with the file's contents after 10,015 to 10,030 ms. The guard's <code>deny</code> arrived too late to count. The budget covers the hook's <em>own</em> time. Waiting on <code>next</code> or on a <code>$</code> call doesn't count against it, but our guard waited on a plain timer, and that does. So does <code>$.clock.sleep</code>, according to the reference. See the <a href="latency.html">latency ladder</a> for what that means for a guard that asks a model.</p>
+
+    <h2>3. Order: outermost first, unwound in reverse</h2>
+    <p>The mod under test registers two Bash hooks. The test loads one inline mod at the prepend tier and one more user mod. Each hook tags the command on the way in and the result on the way out.</p>
+    <pre><code>core saw "ls &gt;prepend &gt;first &gt;second &gt;other-user"
+  &lt;other-user &lt;second &lt;first(origin=engine/core) &lt;prepend</code></pre>
+    <p>This is the order in <a href="chain.html">the hook chain</a>: an organization's prepend mods wrap yours, yours wrap the mods after them, and core sits at the centre. Within a module, <code>on</code> order decides. <code>next.origin</code> on a call the test raised reads <code>engine/core</code>, which is how the reference says Claude Code identifies itself.</p>
+
+    <h2>4. The five moves</h2>
+    <p>One hook picks its move from the command text:</p>
+    <pre><code>E3 core saw: ["observe ls","echo rewritten","post ls","retry make","retry make"]
+E3 rewrite rm -rf / -&gt; "ran: echo rewritten"
+E3 answer pwd -&gt; "answered by the mod (seen 3)"
+E3 post ls -&gt; "ran: post ls [annotated]"</code></pre>
+    <p>Core never saw <code>rm -rf /</code> or <code>answer pwd</code>. A rewrite can't be seen by anything downstream, including later mods. That's why the order matters, and why an organization's guard sits outermost.</p>
+
+    <h2>5. What static analysis refuses</h2>
+    <p>Claude Code reads each module's source before loading it, and lists every event it hooks and every <code>$</code> call it can make. To make that list trustworthy, it refuses code it can't read. Each of these fails <code>validate</code> with exit status 1:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Pattern</th><th>Message (trimmed)</th></tr></thead>
+      <tbody>
+        <tr><td><code>const { ui } = $</code></td><td><code>$ itself is bound to a name (bound, passed, spread, returned or read)</code></td></tr>
+        <tr><td><code>const ui = $.ui</code></td><td><code>$.ui is used as a value (a noun of $ bound, passed or read)</code></td></tr>
+        <tr><td><code>const note = ($, t) =&gt; …</code> inside <code>register</code></td><td><code>$ is passed to "note", which is not a function declared at the top of this file</code></td></tr>
+        <tr><td><code>for (const ev of EVENTS) on(ev, …)</code></td><td><code>the event name passed to on() is not a string literal</code></td></tr>
+        <tr><td><code>await import('./other.ts')</code></td><td><code>a dynamic import()</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>The engine refuses the same module at load: <code>hooks module did not load: … $ itself is bound to a name</code>. A clean module gets an inventory instead, with calls through a top-level helper attributed to it: <code>calls: $.env.get, $.store.set, $.ui.toast (via note)</code> and <code>env reads: HOME</code>. Read that inventory before you install someone else's mod.</p>
+
+    <h2>6. Failing after <code>next</code></h2>
+    <p>A Bash hook that throws while post-processing, and a Read hook that answers with a shape <code>tool.call</code> doesn't accept:</p>
+    <pre><code>E5 bash: {"result":"core ran Bash"} read: {"result":"core ran Read"} core calls: ["Bash","Read"]</code></pre>
+    <p>Core ran Bash once, and its result stood. The wrong-shape Read answer was skipped, and core ran the Read. A post-processing bug can't run a command twice. A wrong-shape bug in a guard fails open, just like a throw.</p>
+
+    <h2>7. The second door: <code>@</code>-mentions</h2>
+    <p>Files named after <code>@</code> in a prompt raise <code>prompt.mention</code>, not <code>tool.call</code>. We wrote the secrets guard everyone writes first, refusing a Read of <code>.env</code>, and then raised both events:</p>
+    <pre><code>E6 Read tool .env: {"deny":"secret-guard: /work/.env looks like a secret"}
+E6 @right/.env (deny shape): {"deny":"secret-guard: @right/.env looks like a secret"}
+E6 @wrong/.env (bad shape): {"deny":"catch handler answered (throw)"}
+E6 @other/.env (no mention hook): {"type":"file"}</code></pre>
+    <p>The <code>tool.call</code> guard never fired for the mention. Only a hook on <code>prompt.mention</code> stopped it. In the kit the test raises both events itself, so this shows the events are separate. It can't show that a live session raises no <code>tool.call</code> for an <code>@</code> read. That part comes from the 2.1.295 reference.</p>
+    <p>The <code>@wrong</code> row is our own mistake, kept on purpose. Our first refusal returned <code>{ type: null, deny }</code>, which isn't a shape <code>prompt.mention</code> accepts. Its first <code>.catch</code> returned the same wrong shape, so the hook was skipped and the file was read, with no error anywhere we were looking. A wrong shape reaches <code>.catch</code> as <code>next.error.kind === 'throw'</code>. Make sure the handler's own answer has the right shape, and test the refusal path rather than only the happy path.</p>
+
+    <h2>8. Two places the docs and the engine disagree</h2>
+    <h3>Timers exist</h3>
+    <p>The mods API page says "the hooks module itself has no Node.js APIs, no timer globals such as <code>setTimeout</code>". In 2.1.296, <code>setTimeout</code> and <code>setInterval</code> are functions, and a 20 ms timer fires after 20 to 21 ms. That's true both in the kit and in the live hooks worker, and <code>validate</code> doesn't flag it. <code>process</code>, <code>fetch</code>, <code>require</code>, <code>WebSocket</code> and <code>XMLHttpRequest</code> are absent, as documented. Treat the timers as undocumented. They may disappear in a later release, a pending one presumably dies with the module on a reload (we didn't test that), and waiting on one counts against the hook's budget, as section 2 showed. <code>$.clock.every</code> and <code>$.clock.after</code> are the supported way to do this.</p>
+    <h3>Duplicate matchers load</h3>
+    <p>The events page says "Register each event once per matcher". Registering <code>tool.call</code> twice with no matcher is refused: <code>on("tool.call") is registered twice without a matcher; the first is at …:2</code>. Registering it twice with the same matcher, <code>{ tool: 'Bash' }</code>, passes validation, loads, and both hooks run. Our latency mod stacks 20 of them, and counted 124,000 hook runs for 6,200 calls.</p>
+
+    <h2>Smaller things worth knowing</h2>
+    <ul>
+      <li><strong>Reserved names go beyond <code>claude-</code>.</strong> Validation refuses names that start with <code>claude-</code>, <code>anthropic-</code>, <code>anthropics-</code> or <code>cc-plugin-</code>, the bare names <code>claude</code>, <code>anthropic</code>, <code>anthropics</code>, <code>claude-code</code> and <code>claude-mods</code>, and anything that puts "official" beside "claude" or "anthropic".</li>
+      <li><strong>Headless probes are free.</strong> A <code>prompt.submit</code> hook that returns <code>{ drop }</code> ends a <code>claude -p</code> run before any model call. That makes a cheap harness for checking what a mod does in a real session. <code>e.surface</code> is <code>null</code> there.</li>
+      <li><strong>The tooling is fast enough for a save hook.</strong> <code>claude plugin validate</code> took a median of 0.49 s and <code>claude plugin test</code> 0.64 s on one small mod.</li>
+    </ul>
+
+    <div class="callout note"><p><strong>Next:</strong> the <a href="latency.html">latency ladder</a> uses the same experiments to put numbers on the chain, from a pass-through hook to a human answering a question.</p></div>
+
+<nav class="pager" aria-label="Page navigation"><a class="pager-prev" href="cascade.html"><span>Previous</span>Mods meet the cascade</a><a class="pager-next" href="latency.html"><span>Next</span>The latency ladder</a></nav>
+    <footer class="footer">
+      <p>An independent study of Claude Code mods, not an Anthropic project. Mods shipped on 1 October 2026 in Claude Code 2.1.287; everything here was checked against 2.1.296 on October 12, 2026. The API is early access, so trust the types your own build writes over anything on this site.</p>
+      <p>Sister site: <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, a field guide to decision models. Text © Rob Gruhl, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>; code samples MIT. Illustrations made with gpt-image-2. Built with Claude Code.</p>
+    </footer>
+  </main>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

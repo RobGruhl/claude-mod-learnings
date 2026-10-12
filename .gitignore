@@ -1,0 +1,5 @@
+.DS_Store
+media/originals/
+.fleet/
+node_modules/
+.playwright-mcp/

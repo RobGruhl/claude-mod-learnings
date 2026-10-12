@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mods 201 · Hook Chain</title>
+<meta name="description" content="Chain etiquette, guards that fail closed, state that survives /clear, drawing, commands and tests.">
+<meta property="og:title" content="Mods 201 · Hook Chain">
+<meta property="og:description" content="Chain etiquette, guards that fail closed, state that survives /clear, drawing, commands and tests.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://robgruhl.github.io/claude-mod-learnings/201.html">
+<meta property="og:image" content="https://robgruhl.github.io/claude-mod-learnings/assets/img/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+  try { var t = localStorage.getItem("hc-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+</head>
+<body class="inner">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Hook Chain</span></a>
+  <div class="topbar-actions">
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="sidenav">Menu</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="sidenav" class="sidenav" aria-label="Site">
+    <a class="nav-start" href="index.html">Start here</a>
+    <div class="nav-group"><p class="nav-head">Learn</p><ul><li><a href="eli5.html">Explain like I&#x27;m five</a></li><li><a href="101.html">101 · What a mod is</a></li><li><a href="201.html" aria-current="page">201 · Writing mods well</a></li><li><a href="301.html">301 · Engineering &amp; policy</a></li></ul></div><div class="nav-group"><p class="nav-head">Architecture</p><ul><li><a href="which.html">Mods vs skills vs MCP…</a></li><li><a href="chain.html">The hook chain</a></li><li><a href="lifetimes.html">What lasts how long</a></li><li><a href="cascade.html">Mods meet the cascade</a></li></ul></div><div class="nav-group"><p class="nav-head">Evidence</p><ul><li><a href="fieldtests.html">Field tests</a></li><li><a href="latency.html">Latency ladder</a></li><li><a href="landscape.html">Landscape · Oct 2026</a></li></ul></div><div class="nav-group"><p class="nav-head">Build</p><ul><li><a href="build.html">Build your own</a></li></ul></div>
+    <p class="nav-foot"><a href="https://github.com/RobGruhl/claude-mod-learnings">Source on GitHub</a></p>
+  </nav>
+  <main id="main" class="content">
+    <p class="eyebrow"><span class="badge l2">Level 2</span> Writing mods well</p>
+    <h1>Mods 201</h1>
+    <p class="lede">Writing a mod that works on your machine is easy. Writing one that works in other people's sessions takes more. It has to stay correct next to other mods, keep its state across a <code>/clear</code>, refuse what it should even when it fails, and pass a test with no session around it. This page covers those habits.</p>
+
+    <h2>1. Chain etiquette</h2>
+    <p>Your hook is one link in a chain that also holds your organization's mods, other mods you installed, Claude Code's built-ins and the engine itself. Be a good neighbour:</p>
+    <ul>
+      <li><strong>Return <code>next(e)</code> unless you mean to answer.</strong> A hook that forgets to return it answers with <code>undefined</code>. Depending on the event, that is either a wrong-shape answer, which gets the hook skipped, or a silent takeover.</li>
+      <li><strong>Spread, don't rebuild.</strong> Rewrite with <code>next({ ...e, command })</code> so fields you didn't think about still reach the engine. Some fields are pinned, such as a subagent's identity or a stored row's metadata. Changing those gets the hook skipped.</li>
+      <li><strong>Narrow with a matcher.</strong> <code>on('tool.call', { tool: 'Bash' }, …)</code> runs only for Bash. That is cheaper and clearer than an <code>if</code> at the top of a hook that sees every call.</li>
+      <li><strong>Judge before you call <code>next</code>.</strong> Once <code>next</code> has run, the tool has run. Anything you decide afterwards can change the result, not the act.</li>
+      <li><strong>Stop when the dispatch is abandoned.</strong> <code>next.signal</code> aborts when the user interrupts, another hook settles first or your budget runs out. Pass it to anything long you start.</li>
+    </ul>
+
+    <h2>2. Guards that fail closed</h2>
+    <figure>
+      <img src="assets/img/failopen.jpg" alt="Two panels of the same garden gate. Left: the robot sentry has dozed off and the gate swings open, letting a card float through. Right: a second robot with a lantern has shut the gate and fastened a big padlock, and the card waits outside." width="1536" height="1024">
+      <figcaption>Left: a guard that throws, answers the wrong shape or runs past its budget is skipped, and the call goes ahead. Right: the same guard with <code>.catch</code>.</figcaption>
+    </figure>
+    <p>Every hook has a budget of 10 seconds of its own time. Time spent waiting inside <code>next</code> or a <code>$</code> call doesn't count. <code>$.clock.sleep</code> does, and so does waiting on your own promise, such as a <code>setTimeout</code>. A hook that throws, returns the wrong shape or runs past its budget is <strong>skipped</strong>, and the next link runs in its place. For a counter that is the right default. For a guard it means the dangerous thing happens. The fix is one line:</p>
+<pre><code>on('tool.call', { tool: 'Bash' }, async ($, e, next) =&gt; {
+  if (DESTRUCTIVE.test(e.command)) return { deny: 'Ask the person to run this themselves.' }
+  return next(e)
+}).catch(($, e, next) =&gt; next.called ? next(e) : { deny: 'guard failed; refusing to be safe' })</code></pre>
+    <p>The handler must itself answer in the event's own shape. We found that a wrong-shape answer is handed to <code>.catch</code> as <code>kind: 'throw'</code>, and if the handler's answer is also the wrong shape, the hook is skipped and the guard fails open anyway. Test the failure path, not just the happy one. The <code>.catch</code> handler gets a 1-second budget. If the hook failed before calling <code>next</code>, the handler refuses. If it failed after, <code>next(e)</code> replays what that call already settled to, so nothing runs twice. Since 2.1.290, <code>claude plugin validate</code> prints each hook at a gating site as <code>gating hook with .catch</code> or <code>gating hook without .catch</code>. It calls this a fact, not a warning, because whether a hook should fail open is yours to decide.</p>
+    <p>Four more things every guard author should know:</p>
+    <ul>
+      <li><strong>There's a second door.</strong> A file named after <code>@</code> in a prompt is read without any <code>tool.call</code>. That read raises <code>prompt.mention</code>. A guard that keeps Claude away from <code>.env</code> has to hook both.</li>
+      <li><strong>Allow-list real paths; don't deny-list spellings.</strong> <code>$.fs.stat(path, { resolve: true })</code> returns <code>realPath</code> with symlinks and <code>..</code> resolved. A guard that checks <code>realPath</code> against a root it resolved the same way is robust. A regex over spellings is best effort.</li>
+      <li><strong>Auto mode reviews the input it saw.</strong> A hook that changes a call's input after auto mode's classifier approved it gets the call denied ("a hook changed this call's input…"). Rewrite before the classifier, or deny.</li>
+      <li><strong>Know your build.</strong> Before 2.1.295, a hook could be handed a deeply nested tool input that had been cut short with no error, so a guard could pass content it never saw. Before 2.1.296, pressing Esc during a mod's <code>prompt.submit</code> hook could let the unchecked prompt through. Guards need a current build.</li>
+    </ul>
+
+    <h2>3. State that survives</h2>
+    <p>A mod has three places to keep things, and they last different lengths of time. <a href="lifetimes.html">What lasts how long</a> covers them in full. The short version:</p>
+    <div class="table-wrap"><table>
+      <tr><th>Where</th><th>Lost on</th><th>Use it for</th></tr>
+      <tr><td>Module variable</td><td>Every reload (a save, <code>/reload-plugins</code>, an option change)</td><td>Caches and scratch values</td></tr>
+      <tr><td><code>$.state</code></td><td><code>/clear</code>, <code>/resume</code>, <code>/branch</code>, and the end of the session</td><td>Anything a drawing reads. A write redraws exactly the readers.</td></tr>
+      <tr><td><code>$.store</code></td><td>Nothing, until deleted or unused for <code>cleanupPeriodDays</code></td><td>Anything that must outlive the session</td></tr>
+    </table></div>
+    <p>The trap: <code>/clear</code>, <code>/resume</code> and <code>/branch</code> reset every <code>$.state</code> value to its default, and <code>session.start</code> doesn't fire again. A mod that mirrors <code>$.store</code> into <code>$.state</code> must reload in a <code>classic.SessionStart</code> hook. Otherwise its next write saves the default over the stored value. Our <code>ledger</code> sample had this bug until the docs pointed it out:</p>
+<pre><code>on('classic.SessionStart', async ($, e, next) =&gt; {
+  if (e.source === 'clear' || e.source === 'resume' || e.source === 'fork') {
+    const total = ((await $.store.get('all-time')) as Tally | undefined) ?? ZERO
+    await update($, allTime, () =&gt; total)
+  }
+  return next(e)
+})</code></pre>
+    <p><code>$.state</code> values must be declared in a <code>PluginState</code> interface in <code>types/index.d.ts</code>, which <code>plugin.json</code> names under <code>"types"</code>. References use literal <code>plugin</code> and <code>key</code>: <code>atom({ plugin: 'ledger', key: 'session' } as const, ZERO)</code>. Write with <code>update($, ref, fn)</code>, which retries on a version miss, so two button presses before a redraw both land. <code>$.store</code> is a JSON file per plugin, shared by every session on the machine, and get and set are not atomic across them. Use per-item keys and re-read before you write.</p>
+
+    <h2>4. Drawing</h2>
+    <p>A <code>ui.render</code> hook gets one component instance: <code>e.component</code>, <code>e.surface</code> (<code>terminal</code> or <code>desktop</code> today), <code>e.props</code> and <code>e.viewport</code>. It has the same three moves as any hook:</p>
+    <ul>
+      <li><strong>Change props:</strong> <code>next({ ...e, props: { ...e.props, suffix } })</code> keeps Claude Code's drawing with your change.</li>
+      <li><strong>Replace:</strong> return your own tree built from <code>$.ui.resolve(e)</code>, the element table for that surface (Box, Text, Button, Link, Code, Markdown, Input, Select, Client, and Svg, Raster or Image depending on the surface).</li>
+      <li><strong>Wrap:</strong> <code>await next(e)</code> returns the engine's drawing as an element you can put inside your own Box. On the band above the prompt, returning a tree without embedding <code>next(e)</code> hides whatever later mods drew.</li>
+    </ul>
+    <p>A tree that doesn't validate, such as an element the surface lacks or a prop it doesn't take, isn't drawn. Claude Code draws its own instead and logs why. Render hooks can't write state, so write from a button's handler or another event. For light touches you don't need a render hook at all: <code>$.ui.status</code> sets the line under the prompt, <code>$.ui.toast</code> shows a 4-second note, <code>$.ui.log</code> adds a dim transcript line Claude doesn't read, and <code>$.ui.notify</code> (2.1.295) raises a native notification. A pane Claude Code opens without the user asking appears only when the terminal is at least 144 columns wide (110 once the user has opened it before).</p>
+
+    <h2>5. Commands and tools</h2>
+<pre><code>on('session.start', async ($, e, next) =&gt; {
+  await $.command.register({ name: 'tally', description: 'Show this session’s tool count.' })
+  return next(e)
+})
+on('command.run', { command: 'tally' }, async () =&gt; ({ text: `Tool calls so far: ${count}` }))</code></pre>
+    <p>Register in <code>session.start</code>. Claude Code waits for it before the first prompt, so the command exists from turn one. The <code>text</code> you return shows as the command's output, and Claude reads it. With <code>immediate: true</code> a command runs even while Claude is mid-turn. Built-in names are refused.</p>
+    <p><code>$.tool.register</code> gives Claude a new tool, listed as <code>mcp__&lt;plugin&gt;__&lt;name&gt;</code>. You serve it from your own <code>tool.call</code> hook with that name as the matcher. By default it sits behind tool search like an MCP tool. Pass <code>isDeferred: false</code> (2.1.293) to list its schema up front.</p>
+
+    <h2>6. Calling a model</h2>
+    <p><code>$.model.complete({ model, prompt })</code> runs one completion with no history on the user's own plan or key. It always resolves and never throws over what the provider did, so check <code>isAnswered</code>. When it is false, <code>reason</code> says why: <code>api-error</code>, <code>empty-reply</code> or <code>aborted</code>. Since 2.1.292, <code>prompt</code> and <code>system</code> take blocks, and <code>cache: true</code> on a block caches the request up to it. <code>$.model.fork({ prompt })</code> asks one tool-less question over the current transcript, served from the prompt cache. Both spend the user's usage, and <code>validate</code> lists them under <code>calls:</code>.</p>
+
+    <h2>7. Work that outlives a hook</h2>
+    <p>A hook belongs to one dispatch. Work that should keep going starts in <code>session.start</code> and runs on <code>$.clock.every</code> or <code>$.clock.after</code>. Those timers run until you cancel them or the module reloads. A timer callback that throws is logged and runs again next interval. <code>$.prompt.submit</code> queues a prompt that starts its own turn once the session is idle, so background work can wake a quiet session.</p>
+
+    <h2>8. Write what the loader can read</h2>
+    <p>Claude Code refuses to load a module whose use of <code>$</code> it can't follow. Static analysis is how it lists a mod's calls, so these all fail <code>validate</code>:</p>
+    <ul>
+      <li>Destructuring <code>$</code> (<code>const { ui } = $</code>) or aliasing a namespace (<code>const ui = $.ui</code>).</li>
+      <li>Passing <code>$</code> to anything but a top-level function declared in the same file.</li>
+      <li>Computed event names, dynamic <code>import()</code>, and bare imports other than <code>claude-code</code> (types plus the <code>atom</code>, <code>read</code>, <code>update</code>, <code>derive</code> and <code>memberOf</code> helpers).</li>
+      <li>Plugin names that look like Anthropic's. In our tests that meant the prefixes <code>claude-</code>, <code>anthropic-</code>, <code>anthropics-</code> and <code>cc-plugin-</code>, plus exact names such as <code>claude-code</code>.</li>
+    </ul>
+
+    <h2>9. Test without a session</h2>
+    <p><code>claude plugin test</code> runs your <code>*.test.ts</code> files against the real engine with no session, network or sign-in. It exits 1 on failure, so it fits CI. The idea that takes getting used to: <strong>the hooks your test registers sit beneath your mod and stand in for Claude Code.</strong> Nothing else is there, so the test has to answer every event and <code>$</code> call the mod passes down.</p>
+<pre><code>import { expect, test } from 'claude-code/testing'
+
+test('holds force pushes, passes the rest trimmed', async ($, on) =&gt; {
+  const ran: string[] = []
+  // This hook plays the engine: it records what reached it and answers.
+  on('tool.call', (_$, e) =&gt; {
+    if (e.tool === 'Bash') ran.push(e.command)
+    return { result: { stdout: '', stderr: '', interrupted: false } } as never
+  })
+  const held = await $.tool.call({ tool: 'Bash', command: 'git push --force origin main' })
+  expect(JSON.stringify(held)).toContain('destructive')
+  await $.tool.call({ tool: 'Bash', command: '  ls -la  ' })
+  expect(ran).toEqual(['ls -la'])
+})</code></pre>
+    <p>The kit also provides <code>mock.clock</code>, <code>mock.store</code>, <code>mock.session</code> (2.1.293) and <code>$.ui.mount({ plugin, surface, component, props })</code> with <code>press</code>, <code>input</code> and <code>find</code> for drawings. Loop UI tests over <code>['terminal', 'desktop']</code> so they don't depend on one surface. Each test has a 5-second limit, and the kit refuses two hooks on the same event from one test.</p>
+
+    <h2>What to remember</h2>
+    <ol>
+      <li>Return <code>next(e)</code> unless you mean to answer, and judge before you call it.</li>
+      <li>Every guard gets <code>.catch</code>. Every secrets guard hooks <code>prompt.mention</code> too.</li>
+      <li><code>$.store</code> is the source of truth. Reload it in <code>classic.SessionStart</code>.</li>
+      <li>Keep <code>$</code> visible to the loader: no destructuring, no aliases.</li>
+      <li>In tests your hooks are the engine, so answer everything.</li>
+    </ol>
+    <div class="callout note"><p><strong>Next:</strong> <a href="301.html">Mods 301</a> covers tiers, policy mods, failure modes, admin controls and distribution. Or see what we observed in <a href="fieldtests.html">Field tests</a>.</p></div>
+
+<nav class="pager" aria-label="Page navigation"><a class="pager-prev" href="101.html"><span>Previous</span>Mods 101</a><a class="pager-next" href="301.html"><span>Next</span>Mods 301</a></nav>
+    <footer class="footer">
+      <p>An independent study of Claude Code mods, not an Anthropic project. Mods shipped on 1 October 2026 in Claude Code 2.1.287; everything here was checked against 2.1.296 on October 12, 2026. The API is early access, so trust the types your own build writes over anything on this site.</p>
+      <p>Sister site: <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, a field guide to decision models. Text © Rob Gruhl, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>; code samples MIT. Illustrations made with gpt-image-2. Built with Claude Code.</p>
+    </footer>
+  </main>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

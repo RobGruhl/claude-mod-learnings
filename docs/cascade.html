@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mods meet the cascade · Hook Chain</title>
+<meta name="description" content="A guard mod as the fastest tier of a code → decision model → LLM → human cascade.">
+<meta property="og:title" content="Mods meet the cascade · Hook Chain">
+<meta property="og:description" content="A guard mod as the fastest tier of a code → decision model → LLM → human cascade.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://robgruhl.github.io/claude-mod-learnings/cascade.html">
+<meta property="og:image" content="https://robgruhl.github.io/claude-mod-learnings/assets/img/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+  try { var t = localStorage.getItem("hc-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+</head>
+<body class="inner">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Hook Chain</span></a>
+  <div class="topbar-actions">
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="sidenav">Menu</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="sidenav" class="sidenav" aria-label="Site">
+    <a class="nav-start" href="index.html">Start here</a>
+    <div class="nav-group"><p class="nav-head">Learn</p><ul><li><a href="eli5.html">Explain like I&#x27;m five</a></li><li><a href="101.html">101 · What a mod is</a></li><li><a href="201.html">201 · Writing mods well</a></li><li><a href="301.html">301 · Engineering &amp; policy</a></li></ul></div><div class="nav-group"><p class="nav-head">Architecture</p><ul><li><a href="which.html">Mods vs skills vs MCP…</a></li><li><a href="chain.html">The hook chain</a></li><li><a href="lifetimes.html">What lasts how long</a></li><li><a href="cascade.html" aria-current="page">Mods meet the cascade</a></li></ul></div><div class="nav-group"><p class="nav-head">Evidence</p><ul><li><a href="fieldtests.html">Field tests</a></li><li><a href="latency.html">Latency ladder</a></li><li><a href="landscape.html">Landscape · Oct 2026</a></li></ul></div><div class="nav-group"><p class="nav-head">Build</p><ul><li><a href="build.html">Build your own</a></li></ul></div>
+    <p class="nav-foot"><a href="https://github.com/RobGruhl/claude-mod-learnings">Source on GitHub</a></p>
+  </nav>
+  <main id="main" class="content">
+    <p class="eyebrow"><span class="badge arch">Architecture</span> Where Hook Chain meets Decision Tier</p>
+    <h1>Mods meet the cascade</h1>
+    <p class="lede">Our sister site, <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, found that two quite different projects converged on the same shape. Deterministic code handles the rules you can write down. A decision model handles bounded judgments. An LLM handles open questions, and a person handles stakes and preferences. A <code>tool.call</code> guard is a natural home for that cascade, because it sits in front of every action Claude takes. This page builds one and tests it.</p>
+
+    <figure>
+      <img src="assets/img/cascade.jpg" alt="A four-step stone staircase. At the bottom a gatekeeper robot pours cards through a sieve at a turnstile, and most pass straight through. On the second step a referee robot holds two probability dials. On the third a larger robot reads a scroll. At the top a person at a desk with a lamp signs a card. A dotted arrow shows one card climbing only to the second step." width="1536" height="1024">
+      <figcaption>Each command climbs only as high as it needs to. Most never leave the bottom step.</figcaption>
+    </figure>
+
+    <h2>The tiers, mapped onto a mod</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Tier</th><th>In a guard mod</th><th>Cost per command</th><th>Decides</th></tr>
+      <tr><td>Rules (managed)</td><td>Permission <code>deny</code> rules and managed <code>PreToolUse</code> hooks, before any mod</td><td>~0</td><td>The obvious spellings, enforced even if every mod is unloaded</td></tr>
+      <tr><td>Code</td><td>Regex allow and deny lists, <code>realPath</code> checks, remembered rulings from <code>$.store</code></td><td>~40 µs per hook, ~90 µs per store read (<a href="latency.html">measured</a>)</td><td>Everything you can write down. Most commands end here.</td></tr>
+      <tr><td>Decision model</td><td><code>$.http.fetch</code> to a typed-judgment endpoint: "how likely is this command to destroy data the person didn't ask to destroy?", plus the model's own doubt</td><td>Hosted Jev p50 0.59 s, p95 2.09 s. OpenAI Decisions p50 0.30 s, p95 0.76 s. (Decision Tier's measurements.)</td><td>The ambiguous remainder: <code>find … -delete</code>, <code>mv</code> over a file, a <code>&gt;</code> redirect</td></tr>
+      <tr><td>LLM</td><td><code>$.model.complete</code>, or simply Claude itself reading the refusal text</td><td>Haiku 5.5 p50 2–3 s, and only 33% identical on re-ask</td><td>Rarely worth it inside a guard. A refusal with a clear reason lets Claude find another way.</td></tr>
+      <tr><td>Person</td><td><code>$.ui.ask</code>, which holds the call in Claude Code's own question dialog</td><td>Seconds to minutes</td><td>Anything doubtful, and anything the model thinks is destructive</td></tr>
+    </table></div>
+    <p>Decision Tier's rule is that guards are "safety only: stop or protect, never decide", and belong in the fastest tier. Mods add a corollary: <strong>a guard must also fail closed by construction</strong>, because a mod hook that throws or overruns is skipped and the call goes ahead. <a href="fieldtests.html">Field tests</a> confirmed both halves on 2.1.296.</p>
+
+    <h2>The guard</h2>
+    <p>This is <code>cascade-guard</code>, a complete mod in <a href="https://github.com/RobGruhl/claude-mod-learnings/tree/main/experiments/cascade-guard">experiments/cascade-guard</a>. It passes <code>claude plugin validate</code>, and its five tests pass in <code>claude plugin test</code> on 2.1.296. The decision model sits behind a URL you configure, and its API is a stand-in: a POST returning <code>{ probability, doubt }</code>. Jev's or the Decisions API's real request shape is different. Decision Tier shows how to phrase the question.</p>
+<pre><code>export const register: Register = (on, options) =&gt; {
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) =&gt; {
+    const command = e.command.trim()
+    // Code: rules you can write down.
+    if (ALWAYS_DENY.some(re =&gt; re.test(command))) return { deny: `${$.plugin.name}: destructive by rule; ask the person to run it.` }
+    if (ALWAYS_ALLOW.test(command) || !SUSPICIOUS.test(command)) return next(e)
+
+    // Code again: a person already ruled on this exact command.
+    const ruling = await remembered($, command)
+    if (ruling === 'allow') return next(e)
+    if (ruling === 'deny') return { deny: `${$.plugin.name}: the person refused this command before.` }
+
+    // Decision model: act only when it is confident and not in doubt.
+    const v = await judge($, String(options.judgeUrl ?? ''), command)
+    if (v &amp;&amp; v.probability &lt; 0.1 &amp;&amp; v.doubt &lt; 0.5) return next(e)
+    if (v &amp;&amp; v.doubt &gt;= 0.5 &amp;&amp; v.doubt &lt;= 0.7) $.ui.log(`watch band, doubt ${v.doubt.toFixed(2)} on: ${command}`, { to: 'debug' })
+
+    // Person: no answer, a likely-destructive answer, or a doubtful one all end here.
+    const answer = await $.ui.ask(`Run this command? ${command} (${why(v)})`, ['Allow', 'Deny'])
+    const decided = answer === 'Allow' ? 'allow' : 'deny'
+    await $.store.set(`ruling:${command}`, decided)       // the fix flows down
+    return decided === 'allow' ? next(e) : { deny: `${$.plugin.name}: the person refused this command.` }
+  }).catch(($, e, next) =&gt; (next.called ? next(e) : { deny: `cascade-guard failed (${next.error.kind}); refusing to be safe.` }))
+}</code></pre>
+    <pre><code>$ claude plugin validate experiments/cascade-guard
+  ❯ ./register.ts hooks: tool.call{tool=Bash}
+  ❯ ./register.ts gating hook with .catch: tool.call{tool=Bash}
+  ❯ ./register.ts calls: $.http.fetch (via judge), $.store.get (via remembered), $.store.set, $.ui.ask, $.ui.log
+✔ Validation passed
+
+$ claude plugin test experiments/cascade-guard
+(pass) tier 1: rules in code decide without a model or a person
+(pass) tier 2: a confident "safe" from the decision model passes with no person
+(pass) tier 4: a likely-destructive verdict goes to the person, and the ruling is stored
+(pass) a remembered ruling stays in code next time
+(pass) no decision model answer fails closed to the person
+ 5 pass  0 fail</code></pre>
+
+    <h2>Design choices, and why</h2>
+    <h3>Code first, and most commands never leave it</h3>
+    <p>The guard passes everything that doesn't look suspicious without calling anyone. <code>npm test</code> costs one hook and a regex, about 40 µs. Decision Tier's first lesson applies directly: put each decision in the cheapest tier that can make it correctly. A decision model on every <code>ls</code> would add half a second to every step of every turn for no benefit.</p>
+
+    <h3>Every escalation ends in a lower-tier fix</h3>
+    <p>When the person rules, the ruling goes into <code>$.store</code>, keyed by the exact command. Next time, that command is decided in code. This is Decision Tier's "fix the cause in a lower tier", in its simplest form. A fuller version would let Claude, during a quiet moment, propose regex rules from the stored rulings for the person to approve. Then whole families of commands move down a tier.</p>
+
+    <h3>Act on the model only when it's confident and calm</h3>
+    <p>The guard lets a command through on the model's word only when the probability of harm is under 0.1 <em>and</em> doubt is under 0.5. Anything else goes to the person. Decision Tier found that high doubt (above about 0.75) was right every time it fired. The bugs sat in the 0.5–0.7 band, so the guard logs that band to the debug log for review instead of ignoring it. The thresholds are a starting point. Set your own from measured data, per model, the way <a href="https://robgruhl.github.io/jev-learnings/301.html">Decision Tier 301</a> describes.</p>
+
+    <h3>Fail closed at every seam</h3>
+    <ul>
+      <li><strong>The decision model is down or answers nonsense:</strong> <code>judge</code> returns <code>undefined</code> and the person is asked. Tested.</li>
+      <li><strong>The hook throws</strong>, for example on malformed JSON: <code>.catch</code> refuses, because <code>next</code> wasn't called yet.</li>
+      <li><strong>There's no one to ask:</strong> <code>$.ui.ask</code> rejects in <code>claude -p</code> and when dismissed. The rejection reaches <code>.catch</code>, which refuses. In headless runs the guard therefore refuses every ambiguous command, which is the right default for a guard.</li>
+      <li><strong>The decision model hangs:</strong> waiting inside <code>$.http.fetch</code> doesn't count against the hook's 10-second budget, so a hung endpoint holds the call. <code>HttpInit</code> has no timeout field in 2.1.296. In production, race the fetch against a short <code>$.clock.sleep</code> (which does count, so keep it to a few seconds) and treat the loss as "no answer".</li>
+      <li><strong>Every mod is unloaded</strong> after a worker crash loop: only managed rules remain. Keep the worst spellings in a <code>deny</code> rule, so the bottom step holds even with the guard gone.</li>
+    </ul>
+
+    <h3>Why not just ask Claude?</h3>
+    <p>Claude reads the refusal text. A deny that says why, such as "destructive by rule; ask the person to run it", usually leads Claude to explain and hand the command over, or to find a safer route. That is the LLM tier working at no extra cost. A <code>$.model.complete</code> call inside the guard would add seconds per command. Decision Tier also measured Haiku giving the same answer to the same question only a third of the time, which is a poor property for a gate.</p>
+
+    <h2>Two places a decision model doesn't belong</h2>
+    <ul>
+      <li><strong>As an MCP tool Claude chooses to call.</strong> Then the expensive tier decides when to consult the cheap one, which is backwards for a guard. It can make sense for advice, not for safety.</li>
+      <li><strong>In a skill.</strong> A skill is instructions Claude reads, not a judge. It can teach Claude what the thresholds mean, and that's the right job for it. In Decision Tier's words: mods and hooks call decision models; skills and CLAUDE.md teach Claude when to trust them.</li>
+    </ul>
+
+    <h2>What to remember</h2>
+    <ol>
+      <li>A <code>tool.call</code> guard is the cascade's fastest tier. Keep most decisions in code.</li>
+      <li>Call a decision model only for the ambiguous remainder, and act on it only when it's confident and calm.</li>
+      <li>Store every human ruling, so the same command is decided in code next time.</li>
+      <li>Fail closed at every seam: model down, hook throws, nobody to ask, endpoint hangs.</li>
+      <li>Back the worst cases with managed rules. Mods can be unloaded and rules can't.</li>
+    </ol>
+
+<nav class="pager" aria-label="Page navigation"><a class="pager-prev" href="lifetimes.html"><span>Previous</span>What lasts how long</a><a class="pager-next" href="fieldtests.html"><span>Next</span>Field tests</a></nav>
+    <footer class="footer">
+      <p>An independent study of Claude Code mods, not an Anthropic project. Mods shipped on 1 October 2026 in Claude Code 2.1.287; everything here was checked against 2.1.296 on October 12, 2026. The API is early access, so trust the types your own build writes over anything on this site.</p>
+      <p>Sister site: <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, a field guide to decision models. Text © Rob Gruhl, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>; code samples MIT. Illustrations made with gpt-image-2. Built with Claude Code.</p>
+    </footer>
+  </main>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+{ "name": "e5-after-next", "version": "0.1.0", "description": "A hook that fails after next, and one that returns the wrong shape", "author": { "name": "Rob Gruhl" } }

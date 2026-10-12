@@ -1,0 +1,1 @@
+{ "name": "e4-pass-arrow", "version": "0.1.0", "description": "Passes $ to a nested arrow function", "author": { "name": "Rob Gruhl" } }

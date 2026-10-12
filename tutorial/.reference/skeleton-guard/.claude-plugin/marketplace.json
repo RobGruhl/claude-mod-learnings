@@ -1,0 +1,13 @@
+{
+  "name": "skeleton-guard-dev",
+  "description": "A local marketplace for the Mod Skeleton tutorial's mod",
+  "owner": {
+    "name": "A Mod Skeleton learner"
+  },
+  "plugins": [
+    {
+      "name": "skeleton-guard",
+      "source": "./"
+    }
+  ]
+}

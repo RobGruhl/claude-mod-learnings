@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hook Chain</title>
+<meta name="description" content="A field guide to Claude Code mods, from explain-like-I&#x27;m-five to engineering a policy mod.">
+<meta property="og:title" content="Hook Chain">
+<meta property="og:description" content="A field guide to Claude Code mods, from explain-like-I&#x27;m-five to engineering a policy mod.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://robgruhl.github.io/claude-mod-learnings/">
+<meta property="og:image" content="https://robgruhl.github.io/claude-mod-learnings/assets/img/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+  try { var t = localStorage.getItem("hc-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+</head>
+<body class="home">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Hook Chain</span></a>
+  <div class="topbar-actions">
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="sidenav">Menu</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="sidenav" class="sidenav" aria-label="Site">
+    <a class="nav-start" href="index.html">Start here</a>
+    <div class="nav-group"><p class="nav-head">Learn</p><ul><li><a href="eli5.html">Explain like I&#x27;m five</a></li><li><a href="101.html">101 · What a mod is</a></li><li><a href="201.html">201 · Writing mods well</a></li><li><a href="301.html">301 · Engineering &amp; policy</a></li></ul></div><div class="nav-group"><p class="nav-head">Architecture</p><ul><li><a href="which.html">Mods vs skills vs MCP…</a></li><li><a href="chain.html">The hook chain</a></li><li><a href="lifetimes.html">What lasts how long</a></li><li><a href="cascade.html">Mods meet the cascade</a></li></ul></div><div class="nav-group"><p class="nav-head">Evidence</p><ul><li><a href="fieldtests.html">Field tests</a></li><li><a href="latency.html">Latency ladder</a></li><li><a href="landscape.html">Landscape · Oct 2026</a></li></ul></div><div class="nav-group"><p class="nav-head">Build</p><ul><li><a href="build.html">Build your own</a></li></ul></div>
+    <p class="nav-foot"><a href="https://github.com/RobGruhl/claude-mod-learnings">Source on GitHub</a></p>
+  </nav>
+  <main id="main" class="content">
+    <section class="home-hero">
+      <figure style="margin-top:0">
+        <img class="hero-img" src="assets/img/hero.jpg" alt="An illustrated conveyor belt runs through four arched gate stations linked by a chain. At each one a small robot handles a card: one inspects it with a magnifying glass, one crosses out a word and writes a better one, one stops a red card and drops it in a tray, one paints a frame around a screen. The belt ends at a big brass engine. Title: Hook Chain, a field guide to Claude Code mods." width="1536" height="1024">
+      </figure>
+      <p class="eyebrow">A field guide · October 2026 · checked on Claude Code 2.1.296</p>
+      <h1>Step into the loop.</h1>
+      <p class="lede">A <strong>mod</strong> is a small TypeScript or JavaScript file that Claude Code loads into its own process. Each function it registers sits in a <strong>chain</strong> in front of something Claude Code was about to do: run a tool, send a prompt, draw the spinner. The function can watch, change what happens, or answer in Claude Code's place. Mods shipped on 1 October 2026 in v2.1.287. This site teaches them from a five-year-old's version up to policy engineering, using what we read in the docs, measured in the test kit and built ourselves.</p>
+    </section>
+
+    <h2>Pick your level</h2>
+    <div class="ladder">
+      <a class="rung" href="eli5.html"><div class="lvl">L0</div><div><h3>Explain like I'm five</h3><p>A restaurant kitchen, a rail of order tickets, and a line of helpers who can read, change or stop each ticket before the chef cooks. Five minutes, no jargon.</p></div></a>
+      <a class="rung" href="101.html"><div class="lvl">L1</div><div><h3>101 · What a mod is</h3><p>Three files, <code>register(on)</code>, the <code>($, e, next)</code> hook and the three moves: observe, rewrite, answer. Where mods run and how to switch them off.</p></div></a>
+      <a class="rung" href="201.html"><div class="lvl">L2</div><div><h3>201 · Writing mods well</h3><p>Chain etiquette, guards that fail closed, state that survives <code>/clear</code>, drawing a band, adding a command, and tests that run without a session.</p></div></a>
+      <a class="rung" href="301.html"><div class="lvl">L3</div><div><h3>301 · Engineering and policy</h3><p>Tiers and seats, policy mods, the static analysis the loader relies on, every failure mode, admin controls, CI and distribution.</p></div></a>
+    </div>
+
+    <h2>The big ideas</h2>
+    <div class="cards">
+      <a class="card" href="which.html"><span class="badge arch">Architecture</span><h3>Which extension point?</h3><p>CLAUDE.md, skills, commands, subagents, MCP, settings hooks, mods, output styles, plugins. What each one can change, and how to pick.</p></a>
+      <a class="card" href="chain.html"><span class="badge arch">Architecture</span><h3>The hook chain</h3><p>How a tool call travels from the model through managed hooks, four tiers of mods and the engine, then back up. Includes a chain simulator.</p></a>
+      <a class="card" href="lifetimes.html"><span class="badge arch">Architecture</span><h3>What lasts how long</h3><p>Module variables die on reload, <code>$.state</code> dies on <code>/clear</code>, <code>$.store</code> outlives the session. The trap that bit our own sample.</p></a>
+      <a class="card" href="cascade.html"><span class="badge arch">Architecture</span><h3>Mods meet the cascade</h3><p>A guard mod as the fastest tier of code → decision model → LLM → human, built with Decision Tier's numbers and failing closed by construction.</p></a>
+      <a class="card" href="fieldtests.html"><span class="badge data">Evidence</span><h3>Field tests</h3><p>Claims from the docs checked by experiment in <code>claude plugin test</code> on 2.1.296: fail-open, <code>.catch</code>, ordering, rewrites, static analysis.</p></a>
+      <a class="card" href="latency.html"><span class="badge data">Evidence</span><h3>The latency ladder</h3><p>A pass-through hook costs microseconds. A decision model costs a second, an LLM several, a person minutes. The budget is what your hook awaits.</p></a>
+      <a class="card" href="landscape.html"><span class="badge data">Evidence</span><h3>Landscape refresh</h3><p>Releases 2.1.287 to 2.1.296, the built-in mods, the fixes that matter for guards, and community catalogs with thousands of mods.</p></a>
+      <a class="card" href="build.html"><span class="badge build">Build</span><h3>Build your own</h3><p>The Mod Skeleton: a facilitated tutorial you run in Claude Code, one small module at a time, ending in a tested guard you can publish.</p></a>
+    </div>
+
+    <h2>The ten-line version</h2>
+    <ol>
+      <li>Pick the lightest extension point that can do the job. Text goes in CLAUDE.md or a skill, tools come from MCP, and a script you already have goes in a settings hook. Reach for a mod when you need to draw, rewrite an event or run code on a command.</li>
+      <li>A mod is a plugin whose <code>hooks/hooks.json</code> names one module exporting <code>register(on, options)</code>. Every hook is <code>($, e, next)</code>.</li>
+      <li>A hook has three moves. It can observe (<code>return next(e)</code>), rewrite (<code>next({ ...e, … })</code>) or answer without calling <code>next</code>, so nothing beneath it runs.</li>
+      <li>Hooks run in a fixed chain: prepend (org policy), then user, append and builtin, then Claude Code itself. The result comes back up the same way, so an outer hook sees the event first and the result last.</li>
+      <li>A hook that throws or runs past its 10-second budget is skipped. The call goes ahead. A guard must register <code>.catch</code> to fail closed.</li>
+      <li>Mods aren't sandboxed. They act with your permissions, and <code>$.fs</code> and <code>$.process</code> don't pass through your deny rules. Run <code>claude plugin validate</code> on a mod before you install it and read its <code>calls:</code> line.</li>
+      <li>Everything outside the module goes through <code>$</code>. That is why the loader can list a mod's calls before it runs. It is also why it refuses a module that hides <code>$</code> in a destructure, an alias or a helper it can't follow.</li>
+      <li>There are three lifetimes. Module variables last until the next reload. <code>$.state</code> lasts until <code>/clear</code>, <code>/resume</code> or <code>/branch</code>, and <code>session.start</code> doesn't fire again after them. <code>$.store</code> lasts across sessions. Make the store the source of truth.</li>
+      <li>Test with <code>claude plugin test</code>. Your test's hooks sit beneath the mod and stand in for Claude Code, so the test must answer every event the mod passes down.</li>
+      <li>A guard on <code>tool.call</code> doesn't see <code>@</code>-mentioned files. Those reads raise <code>prompt.mention</code> instead, so a secrets guard has to hook both doors.</li>
+    </ol>
+
+    <h2>Where the evidence comes from</h2>
+    <div class="two-col">
+      <div class="callout"><p class="kicker">Reading and building</p><p>The official mods docs, the bundled <code>plugin-authoring</code> reference, the 21,000-line type declarations shipped with each build, the release notes from 2.1.287 to 2.1.296, and five sample mods of our own. Each one validates, type-checks and passes its tests. That work lives in <a href="https://github.com/RobGruhl/claude-mods">claude-mods</a>.</p></div>
+      <div class="callout"><p class="kicker">Measuring</p><p>Small experiment mods run in <code>claude plugin test</code>, which uses the real engine with no session, network or sign-in. We checked the claims that matter most for anyone writing a guard and timed how much a hook costs. See <a href="fieldtests.html">Field tests</a> and <a href="latency.html">the latency ladder</a>.</p></div>
+    </div>
+    <p>This is an independent study, not an Anthropic project. The mods API is early access and moves between releases. When this site disagrees with the declarations your own build writes into <code>.claude-plugin/types/</code>, the declarations win.</p>
+
+    <div class="callout note"><p><strong>Sister site.</strong> <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a> is the same kind of field guide for decision models: fast, typed judgment calls between your code and an LLM. The two meet on <a href="cascade.html">Mods meet the cascade</a>, where a guard mod calls a decision model for the ambiguous cases. In Decision Tier's words, mods and hooks call decision models, and skills and CLAUDE.md teach Claude when to trust them.</p></div>
+
+
+    <footer class="footer">
+      <p>An independent study of Claude Code mods, not an Anthropic project. Mods shipped on 1 October 2026 in Claude Code 2.1.287; everything here was checked against 2.1.296 on October 12, 2026. The API is early access, so trust the types your own build writes over anything on this site.</p>
+      <p>Sister site: <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, a field guide to decision models. Text © Rob Gruhl, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>; code samples MIT. Illustrations made with gpt-image-2. Built with Claude Code.</p>
+    </footer>
+  </main>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

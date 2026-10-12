@@ -1,0 +1,1 @@
+{ "name": "latency", "version": "0.1.0", "description": "Pass-through hooks for timing the chain", "author": { "name": "Rob Gruhl" } }

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mods 301 · Hook Chain</title>
+<meta name="description" content="Tiers, policy mods, static analysis, failure modes, admin controls, CI and distribution.">
+<meta property="og:title" content="Mods 301 · Hook Chain">
+<meta property="og:description" content="Tiers, policy mods, static analysis, failure modes, admin controls, CI and distribution.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://robgruhl.github.io/claude-mod-learnings/301.html">
+<meta property="og:image" content="https://robgruhl.github.io/claude-mod-learnings/assets/img/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+  try { var t = localStorage.getItem("hc-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+</head>
+<body class="inner">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Hook Chain</span></a>
+  <div class="topbar-actions">
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="sidenav">Menu</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="sidenav" class="sidenav" aria-label="Site">
+    <a class="nav-start" href="index.html">Start here</a>
+    <div class="nav-group"><p class="nav-head">Learn</p><ul><li><a href="eli5.html">Explain like I&#x27;m five</a></li><li><a href="101.html">101 · What a mod is</a></li><li><a href="201.html">201 · Writing mods well</a></li><li><a href="301.html" aria-current="page">301 · Engineering &amp; policy</a></li></ul></div><div class="nav-group"><p class="nav-head">Architecture</p><ul><li><a href="which.html">Mods vs skills vs MCP…</a></li><li><a href="chain.html">The hook chain</a></li><li><a href="lifetimes.html">What lasts how long</a></li><li><a href="cascade.html">Mods meet the cascade</a></li></ul></div><div class="nav-group"><p class="nav-head">Evidence</p><ul><li><a href="fieldtests.html">Field tests</a></li><li><a href="latency.html">Latency ladder</a></li><li><a href="landscape.html">Landscape · Oct 2026</a></li></ul></div><div class="nav-group"><p class="nav-head">Build</p><ul><li><a href="build.html">Build your own</a></li></ul></div>
+    <p class="nav-foot"><a href="https://github.com/RobGruhl/claude-mod-learnings">Source on GitHub</a></p>
+  </nav>
+  <main id="main" class="content">
+    <p class="eyebrow"><span class="badge l3">Level 3</span> Engineering and policy</p>
+    <h1>Mods 301</h1>
+    <p class="lede">At scale a mod stops being a personal tweak and becomes part of how an organization runs Claude Code. This page is for the people who write policy mods, review other people's mods, or decide which mods may load at all. It covers seats in the chain, admission, what the loader's static analysis does and doesn't promise, every failure mode we know of, and how to ship.</p>
+
+    <h2>1. Seats in the chain</h2>
+    <p>Hooks don't run in load order, whatever some early write-ups say. They run by tier, outermost first:</p>
+    <div class="table-wrap"><table>
+      <tr><th>Seat</th><th>Who sits there</th><th>Set by</th></tr>
+      <tr><td>1. prepend</td><td><code>sec-default@builtin</code> where the guard loads, then <code>prependPlugins</code> in listed order, then other org mods not in <code>appendPlugins</code></td><td>Managed settings</td></tr>
+      <tr><td>2. user</td><td>Mods the user installed. A mod runs before the mods it lists in <code>dependencies</code>.</td><td>The user</td></tr>
+      <tr><td>3. append</td><td><code>appendPlugins</code></td><td>Managed settings</td></tr>
+      <tr><td>4. builtin</td><td>Other built-in mods: <code>agents-md</code>, <code>diff</code>, <code>telemetry</code>…</td><td>Claude Code</td></tr>
+      <tr><td>5. core</td><td>Claude Code's own behaviour, reported as <code>{ plugin: 'engine', tier: 'core' }</code></td><td>—</td></tr>
+    </table></div>
+    <p>Within one module, hooks run in the order <code>on</code> was called. Setting <code>prependPlugins</code> <em>replaces</em> the default, so list <code>sec-default@builtin</code> yourself or you lose the guard. Repository settings can never set these lists. A prepend or append mod can skip the user tier with <code>next.to(e, 'append' | 'builtin' | 'core')</code>, and any hook can read <code>next.origin</code> to see who raised the event. <a href="chain.html">The hook chain</a> draws the full path of a tool call, including where managed <code>PreToolUse</code> hooks sit.</p>
+
+    <h2>2. Policy mods</h2>
+    <p>Two events make a mod a policy engine:</p>
+    <ul>
+      <li><strong><code>plugin.register</code></strong> fires for each hooks module about to load, with <code>e.tier</code> and <code>e.uses</code>, the same list <code>validate</code> prints. A prepended mod can return <code>{ refuse }</code>. For example, it can refuse any user mod that calls <code>process.run</code> or <code>http.fetch</code>.</li>
+      <li><strong>Every <code>$</code> call is an event.</strong> A prepended hook on <code>fs.read</code>, <code>http.fetch</code> or <code>model.complete</code> sees, rewrites or refuses those calls from every mod seated after it.</li>
+    </ul>
+    <p>The built-in <code>sec-default</code> guard is the reference policy mod, and its source is public in <a href="https://github.com/anthropics/claude-code/tree/main/mods/sec-default">anthropics/claude-code</a>. Where it loads, it stops user mods from changing the system prompt and managed instructions. It also stops them lifting a managed <code>deny</code> rule unless <code>allowModsToOverrideDenyRules</code> is set. An 11 October update widened what it holds: managed and sign-in environment variables against <code>env.set</code>, injected <code>session.append</code> rows, <code>prompt.attachment</code>, <code>ui.log</code> and all of <code>session.compact</code>. A user mod's compaction hook doesn't run where the guard is seated. A user mod <em>can</em> still override <code>ask</code> rules and non-managed <code>PreToolUse</code> blocks, and in auto mode a call a mod approves skips the classifier.</p>
+    <p>Write admission checks with <code>.catch</code>. A <code>plugin.register</code> hook that throws is skipped, and the mod it was checking loads.</p>
+
+    <h2>3. The switches, in order</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Switch</th><th>Effect</th></tr>
+      <tr><td>Anthropic's remote kill switch</td><td>Turns installed mods off. No local setting overrides it.</td></tr>
+      <tr><td>Workspace trust</td><td>No mod loads before the trust prompt is accepted.</td></tr>
+      <tr><td><code>--safe-mode</code> / <code>--bare</code></td><td>Turns off installed mods for the session. <code>--bare</code> keeps managed ones. Built-ins unaffected.</td></tr>
+      <tr><td><code>disableAllHooks</code></td><td>In user settings, stops the user's mods and hooks. In managed settings, stops every installed mod, org mods included.</td></tr>
+      <tr><td><code>allowManagedHooksOnly</code> (managed)</td><td>Only org and built-in mods load, and users' settings hooks are blocked.</td></tr>
+      <tr><td><code>allowManagedModsOnly</code></td><td>An option on the <code>sec-default</code> guard (<code>pluginConfigs["cc-plugin-sec-default@builtin"].options</code>), honoured only in managed settings. User mods stop, and users' settings hooks keep working.</td></tr>
+      <tr><td><code>disableSideloadFlags</code> (managed)</td><td>Rejects <code>--plugin-dir</code> and <code>--plugin-url</code>, and stops mods Claude writes from loading.</td></tr>
+      <tr><td><code>strictKnownMarketplaces</code> and allowlists</td><td>Decide whether a mod can be installed in the first place.</td></tr>
+    </table></div>
+    <p>An org mod counts as the organization's only when managed <code>enabledPlugins</code> lists it from a <strong>directory</strong> marketplace at an absolute path by relative path, so it loads in place. A GitHub, git, URL or npm source counts as a user's mod even when managed settings enable it.</p>
+
+    <h2>4. An audit boundary, not a security boundary</h2>
+    <p>The docs say both "the module runs in a sandbox of its own" and "mods aren't sandboxed". Both are true. The runtime is <em>capability-isolated</em>: no Node, no DOM, no file or network globals (timer globals do exist, despite the docs; see <a href="fieldtests.html">Field tests</a>), and every effect is a <code>$</code> call the loader can find statically. But <code>$</code> hands out the user's full authority. Static analysis tells a reviewer <em>what</em> a mod can do. It doesn't stop it. Three gaps matter for policy:</p>
+    <ul>
+      <li><code>$.fs</code> and <code>$.process</code> don't pass through permission rules. <code>Read(.env)</code> as a deny rule doesn't stop <code>$.fs.read('.env')</code>. A prepended hook on <code>fs.read</code> does.</li>
+      <li>Org network policy covers <code>$.http.fetch</code> but not a process a mod spawns.</li>
+      <li>A process a mod starts runs outside the Bash sandbox.</li>
+    </ul>
+
+    <h2>5. Failure modes</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Failure</th><th>What happens</th><th>Net effect</th></tr>
+      <tr><td>Hook throws, overruns 10 s of own time, or answers the wrong shape before <code>next</code></td><td>Skipped; the next link runs in its place</td><td><strong>Fails open</strong></td></tr>
+      <tr><td>Same, after <code>next</code> resolved</td><td>That result stands; nothing runs twice</td><td>—</td></tr>
+      <tr><td><code>.catch</code> registered</td><td>Handler runs (1 s) with <code>next.error.kind</code> = throw, timeout or re-entry, and can deny</td><td>Fails closed, by choice</td></tr>
+      <tr><td><code>$.ui.ask</code> hook times out while holding a call</td><td>Hook skipped, so the held command runs</td><td><strong>Fails open</strong></td></tr>
+      <tr><td><code>sec-default</code> can't read managed settings or check deny rules</td><td>Refuses user mods or the call</td><td>Fails closed</td></tr>
+      <tr><td>Invalid <code>ui.render</code> tree</td><td>Engine draws its own and logs the reason</td><td>Graceful</td></tr>
+      <tr><td>Top-level module code throws</td><td><code>hooks module did not load</code></td><td>—</td></tr>
+      <tr><td>A reload fails</td><td>Previous version stays loaded</td><td>—</td></tr>
+      <tr><td>A hook blocks the worker thread</td><td>That mod unloaded: "crashed the hooks worker"</td><td>—</td></tr>
+      <tr><td>Worker crashes three times with no single culprit</td><td><strong>All non-built-in mods unloaded, org policy mods included</strong>, until <code>/reload-plugins</code></td><td><strong>Policy fails open</strong></td></tr>
+      <tr><td><code>session.end</code> hooks</td><td>All of them share 1.5 s</td><td>Late saves are lost</td></tr>
+    </table></div>
+    <p>The worker-crash row is the one to plan around. A policy that must hold even when every mod is unloaded belongs in managed settings (deny rules, managed <code>PreToolUse</code> hooks), not only in a mod. Managed <code>PreToolUse</code> hooks run before any mod sees the call, and they run again on a call a mod rewrote.</p>
+
+    <h2>6. Limits</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Limit</th><th class="num">Value</th></tr>
+      <tr><td>Hook's own time</td><td class="num">10 s</td></tr>
+      <tr><td><code>.catch</code> handler</td><td class="num">1 s</td></tr>
+      <tr><td>All <code>session.end</code> hooks together</td><td class="num">1.5 s</td></tr>
+      <tr><td><code>$.process.run</code></td><td class="num">30 s default, 10 min max</td></tr>
+      <tr><td><code>$.model.complete</code> maxTokens default</td><td class="num">1,024</td></tr>
+      <tr><td><code>$.fs</code> per file / <code>$.store</code> per plugin / <code>$.http.fetch</code> body</td><td class="num">4 MiB each</td></tr>
+      <tr><td><code>ui.invalidate</code> redraws</td><td class="num">10/s (30/s visible terminal)</td></tr>
+      <tr><td><code>$.session.messages()</code></td><td class="num">newest 4,096</td></tr>
+      <tr><td>Names</td><td class="num"><code>[A-Za-z0-9_-]</code>, ≤ 64</td></tr>
+      <tr><td>Registered tool description seen by the model (2.1.296)</td><td class="num">4,096 chars</td></tr>
+      <tr><td>One test in <code>claude plugin test</code></td><td class="num">5 s</td></tr>
+    </table></div>
+
+    <h2>7. CI for mods</h2>
+    <ol class="steps">
+      <li><strong>Validate strictly.</strong> <code>claude plugin validate &lt;dir&gt; --strict --json</code>. Fail the build if <code>calls</code> grows unexpectedly or a gating hook loses its <code>.catch</code> (<code>gatingHooks</code> in the JSON).</li>
+      <li><strong>Test.</strong> <code>claude plugin test &lt;dir&gt;</code> exits 1 on failure and needs no network or sign-in. Run it in an empty folder first to check that mods can load in that environment at all.</li>
+      <li><strong>Type-check against the build.</strong> The authoritative API is the declaration file each build writes (about 21,500 lines in 2.1.295). A headless run doesn't write <code>.claude-plugin/types/</code>, so keep a pinned copy from the <code>plugin-authoring</code> skill's bundle and point a tsconfig at it. Regenerate it on every Claude Code upgrade; never edit it.</li>
+      <li><strong>Pin the Claude Code version in CI</strong>, and re-run on upgrade. The API is early access, and seven of the first nine releases after launch changed something for mod authors.</li>
+    </ol>
+
+    <h2>8. Shipping</h2>
+    <p>One file makes a repository a marketplace: <code>.claude-plugin/marketplace.json</code> listing the mod, with <code>"source": "./"</code> for a single-mod repo. Users install with one line at the prompt:</p>
+<pre><code>/plugin install &lt;mod&gt; --marketplace &lt;owner&gt;/&lt;repo&gt;</code></pre>
+    <p>Put that line in the README. Since 2.1.295 <code>validate</code> suggests it when it's missing. Installs are cached by version, so bump <code>version</code> on every release. An edit to a working copy reaches users only as a new version and <code>claude plugin update</code>. The exception is a <strong>directory marketplace</strong> with relative sources, which is read in place: edit it, run <code>/reload-plugins</code>, done. That is the model for org mods. Plugins can also be submitted to the Claude directory.</p>
+
+    <h2>9. When something does nothing</h2>
+    <ul>
+      <li>Run <code>claude --debug</code>. A skipped hook is logged with its plugin, event and reason. In a hot-reloading session a dim transcript line says it once. <code>claude -p</code> writes it to stderr.</li>
+      <li><code>/plugin</code> shows <code>N mods active · names</code>. Since 2.1.296 it also notes a plugin whose hooks were dropped because another enabled plugin has the same name.</li>
+      <li>"registered /x but no command.run hook answered it" means a command with no answer. <code>options do not fit plugin.json userConfig</code> means the module didn't load because of a bad option.</li>
+      <li>Installed mods didn't load in the first session after upgrading to 2.1.289. If a mod seemed dead right after an update, that was probably why.</li>
+    </ul>
+
+    <h2>What to remember</h2>
+    <ol>
+      <li>The chain is ordered by seat, not load order. Policy sits in prepend.</li>
+      <li><code>plugin.register</code> plus the fact that every <code>$</code> call is an event make a mod a policy engine.</li>
+      <li>Static analysis is an audit boundary. <code>$</code> carries the user's full authority.</li>
+      <li>Mods fail open by default, and a worker crash loop unloads policy mods too. Back critical policy with managed settings.</li>
+      <li>Validate strictly, test, type-check against the build and pin the version in CI.</li>
+    </ol>
+
+<nav class="pager" aria-label="Page navigation"><a class="pager-prev" href="201.html"><span>Previous</span>Mods 201</a><a class="pager-next" href="which.html"><span>Next</span>Which extension point?</a></nav>
+    <footer class="footer">
+      <p>An independent study of Claude Code mods, not an Anthropic project. Mods shipped on 1 October 2026 in Claude Code 2.1.287; everything here was checked against 2.1.296 on October 12, 2026. The API is early access, so trust the types your own build writes over anything on this site.</p>
+      <p>Sister site: <a href="https://robgruhl.github.io/jev-learnings/">Decision Tier</a>, a field guide to decision models. Text © Rob Gruhl, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>; code samples MIT. Illustrations made with gpt-image-2. Built with Claude Code.</p>
+    </footer>
+  </main>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

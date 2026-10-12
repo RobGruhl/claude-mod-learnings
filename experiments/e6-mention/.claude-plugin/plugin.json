@@ -1,0 +1,1 @@
+{ "name": "e6-mention", "version": "0.1.0", "description": "A secrets guard on tool.call alone, and on prompt.mention as well", "author": { "name": "Rob Gruhl" } }
